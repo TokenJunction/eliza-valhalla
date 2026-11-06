@@ -238,6 +238,24 @@ async function handle(
 ): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${HOST}`);
   const pathname = url.pathname;
+  const originHeader = req.headers.origin;
+  const siteOrigin =
+    originHeader === "https://valhalla-app.xyz" || originHeader === "https://www.valhalla-app.xyz"
+      ? originHeader
+      : "";
+  const controlPath = pathname === "/api/state" || pathname === "/api/start" || pathname === "/api/stop";
+  if (siteOrigin && controlPath) {
+    res.setHeader("Access-Control-Allow-Origin", siteOrigin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "content-type");
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+  }
   if (pathname.includes("..") || /send|withdraw|transfer|sweep/i.test(pathname)) {
     send(res, 404, { ok: false, error: "This desk has no send or withdraw path." });
     return;
