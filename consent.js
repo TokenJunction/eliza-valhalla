@@ -66,7 +66,7 @@
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "Cookie settings");
     panel.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:80;background:#0a0a0e;color:#f2ead8;border:1px solid #ffb347;padding:14px;font:13px/1.45 ui-monospace,monospace;max-width:720px";
-    panel.innerHTML = '<p style="color:#ffb347;letter-spacing:.12em;margin:0 0 6px">VALHALLA™ · COOKIES</p>'
+    panel.innerHTML = '<p style="color:#E8B65A;letter-spacing:.12em;margin:0 0 6px">ValhallaOS · Cookies</p>'
       + '<p id="gpcNote" hidden>Opt-out preference signal honored.</p>'
       + '<p>Strictly necessary cookies stay on. Analytics and advertising stay off until you allow them.</p>'
       + '<div id="consentCustom" hidden>'

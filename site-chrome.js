@@ -36,10 +36,10 @@
       brand.href = "/";
       header.insertBefore(brand, header.firstChild);
     }
-    if (brand.querySelector("img")) brand.querySelector("img").alt = "Valhalla™ mech logo";
-    if (brand.innerHTML.indexOf("VALHALLA™") < 0) {
+    if (brand.querySelector("img")) brand.querySelector("img").alt = "ValhallaOS";
+    if (brand.textContent.indexOf("VALHALLAOS") < 0 && brand.innerHTML.indexOf("VALHALLA™") < 0) {
       if (brand.innerHTML.indexOf("VALHALLA") >= 0) brand.innerHTML = brand.innerHTML.replace("VALHALLA", "VALHALLA™");
-      else brand.insertAdjacentHTML("beforeend", " VALHALLA™");
+      else brand.insertAdjacentHTML("beforeend", " VALHALLAOS");
     }
     var nav = header.querySelector("nav") || header;
     var locked = header.dataset.nav === "locked";
@@ -77,9 +77,9 @@
       document.body.appendChild(foot);
     }
     var host = foot.querySelector(".wrap") || foot;
-    if (!foot.querySelector(".xlink")) {
+    if (!locked && !foot.querySelector(".xlink")) {
       var footX = document.createElement("p");
-      footX.innerHTML = '<a class="xlink" href="' + xUrl + '">' + mark + " Follow Valhalla on X</a>";
+      footX.innerHTML = '<a class="xlink" href="' + xUrl + '">' + mark + " Follow ValhallaOS on X</a>";
       host.appendChild(footX);
     }
     if (!foot.querySelector("[data-cookie-settings]")) {
@@ -94,12 +94,7 @@
       host.appendChild(legal);
     }
     var meta = document.querySelector('meta[name="twitter:site"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "twitter:site");
-      document.head.appendChild(meta);
-    }
-    meta.setAttribute("content", cfg.handle || "@ValhallaOS");
+    if (meta) meta.setAttribute("content", cfg.handle || "@ValhallaOS");
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

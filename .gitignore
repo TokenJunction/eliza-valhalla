@@ -1,4 +1,5 @@
 /site-build/
+/dist/
 /.wrangler/
 /.vscode/
 /node_modules/

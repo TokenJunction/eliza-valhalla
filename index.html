@@ -3,63 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#090a0b">
-  <meta name="description" content="Enter ValhallaOS, a paper-first command desk for wallet connections and assistant chat.">
-  <meta name="twitter:site" content="@ValhallaOS">
+  <meta name="theme-color" content="#121a27">
+  <meta name="description" content="Preview release. The ValhallaOS flagship is a Jupiter trading terminal inside an AI workspace. This preview does not execute swaps or take payment.">
   <link rel="canonical" href="https://valhalla-app.xyz/">
   <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="preload" as="image" href="/assets/hero-ascent-poster.jpg" fetchpriority="high">
   <link rel="stylesheet" href="/home.css">
-  <title>ValhallaOS · Your command desk</title>
+  <title>ValhallaOS</title>
 </head>
 <body>
   <div class="page">
     <header class="topbar" data-nav="locked">
-      <a class="brand" href="/"><img src="/assets/mark.svg" alt="" width="42" height="42"><span>VALHALLA™<small>COMMAND DESK</small></span></a>
-      <nav aria-label="Main navigation"><a href="#about">The desk</a><a href="/faq/">Help</a><a href="/os/">Explore without an account</a></nav>
+      <a class="brand" href="/"><svg id="brand-mark" class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><path fill="none" stroke="#E8B65A" stroke-width="1.6" d="M5 23c4.2-11 17.8-11 22 0"/><path fill="none" stroke="#C9963E" stroke-width="1.2" d="M9 23c2.8-7 11.2-7 14 0"/><path fill="#E8B65A" d="M15 13h2v10h-2z"/></svg><span>VALHALLAOS</span></a>
+      <nav aria-label="Main navigation">
+        <a href="/app/">Client access</a>
+      </nav>
     </header>
 
     <main>
-      <div class="hero">
-        <section class="intro" aria-labelledby="home-title">
-          <div class="system-line"><span class="dot"></span> VALHALLAOS <span> / </span> PAPER-FIRST</div>
-          <h1 id="home-title">Your space to<br><em>think, connect,</em><br>and explore.</h1>
-          <p>Meet the Valhalla command desk: a place for your assistant, wallet connections, and paper trading tools. Your keys stay in your wallet.</p>
-          <div class="hero-links"><a href="/os/">Explore the public desk <span aria-hidden="true">→</span></a><a href="#about">See what's inside</a></div>
-          <div class="hero-status"><span>EXECUTION <b>DISABLED</b></span><span>MODE <b>PAPER-FIRST</b></span></div>
-        </section>
-
-        <section class="access" aria-labelledby="access-title">
-          <div class="panel-bar"><span>VALHALLAOS / ACCESS</span><span>SECURE SIGN-IN</span></div>
-          <div class="access-body">
-            <img class="access-mark" src="/assets/mark.svg" alt="" width="48" height="48">
-            <h2 id="access-title">Welcome to Valhalla</h2>
-            <p>Sign in or create an account. We'll guide you through the human check and terms, then send a code to your email.</p>
-            <form id="home-email" action="/app/" method="get">
-              <label for="home-email-address">Email address</label>
-              <input id="home-email-address" type="email" autocomplete="email" placeholder="you@example.com" required>
-              <button type="submit">Continue with email</button>
-            </form>
-            <div class="divider"><span>OR</span></div>
-            <a class="google-link" id="home-google" href="/app/">Continue with Google</a>
-            <p class="access-help">New here? Choose <strong>Create account</strong> on the next screen. Returning or recovering access? Use your email to receive a sign-in code.</p>
-            <p class="security-note">Never share a seed phrase or private key. Valhalla will not ask for one.</p>
+      <p class="status">Preview release — service validation in progress.</p>
+      <figure class="stage-wrap" aria-label="Silent film. ValhallaOS visual introduction. It does not show the product.">
+        <div class="stage">
+          <div class="scene" id="hero-scene">
+            <img class="still" src="/assets/hero-ascent-poster.jpg" alt="" width="1280" height="720">
+            <video id="hero-video" muted loop playsinline preload="none" poster="/assets/hero-ascent-poster.jpg" aria-describedby="hero-note"></video>
+            <ol class="scenes" aria-label="Three scenes">
+              <li>Your trading terminal.</li>
+              <li>Your AI workspace.</li>
+              <li>Connected to Solana.</li>
+            </ol>
+            <p class="motion-slot"><button class="motion-control" id="hero-motion" type="button" aria-pressed="false" aria-label="Play motion" title="Play motion">▶</button></p>
           </div>
-        </section>
-      </div>
-
-      <section class="about" id="about" aria-labelledby="about-title">
-        <div><h2 id="about-title">A command desk, built around you.</h2><p>Open the desk without an account, or sign in to use the existing paper desk and account features.</p><a href="/os/">Open ValhallaOS →</a></div>
-        <div class="module-list">
-          <article><span>01 / ASSISTANT</span><h3>Talk it through</h3><p>Ask the configured chat service about the desk and market concepts. Browser voice replies are optional.</p></article>
-          <article><span>02 / WALLET BRIDGE</span><h3>Stay in control</h3><p>Connect an available Solflare or MetaMask wallet. The public desk does not request a transaction.</p></article>
-          <article><span>03 / PAPER MODE</span><h3>Explore your strategy</h3><p>Adjust simulated bot settings in the existing desk. Live trading and autonomous execution are not connected.</p></article>
         </div>
+        <figcaption id="hero-note">ValhallaOS visual introduction. A short celestial scene. It does not show the product.</figcaption>
+        <p id="hero-fallback" hidden>The scene did not play. The still image is the same introduction. It does not show the product.</p>
+        <noscript><p>ValhallaOS visual introduction. A short celestial scene. It does not show the product. The still image is the introduction.</p></noscript>
+      </figure>
+
+      <section class="intro-note" id="discover" aria-labelledby="discover-title">
+        <h1 id="discover-title">ValhallaOS</h1>
+        <p class="tagline">Trade Solana. Work with AI. Keep control.</p>
+        <p>The flagship is a Jupiter trading terminal inside an AI workspace. Designed for customer-controlled trades, with optional ElizaOS assistance. Not an official Jupiter product.</p>
+        <p>The preview does not execute swaps or take payment. Sign-in and quote review are planned for when the service is connected. This page does not complete sign-in.</p>
       </section>
+
     </main>
-    <footer><span>VALHALLA™ / TOKENJUNCTION</span><nav aria-label="Footer"><a href="/faq/">FAQ</a><a href="/contact/">Contact</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="/shop/">Shop</a></nav><p>Crypto is risky. Not financial advice.</p></footer>
+
+    <footer>
+      <span>VALHALLAOS</span>
+      <nav aria-label="Footer">
+        <a href="https://github.com/TokenJunction/eliza-valhalla">Repository</a>
+        <a href="/disclaimer.html">Risk</a>
+      </nav>
+      <p>A live trade is your own wallet transaction. You keep custody. Results are not guaranteed. This is not financial advice.</p>
+      <p class="legal-tm">© 2026 TokenJunction LLC</p>
+    </footer>
   </div>
   <script src="/site-config.js"></script>
-  <script src="/home.js"></script>
+  <script src="/home-motion.js"></script>
   <script src="/site-chrome.js"></script>
 </body>
 </html>
