@@ -1,0 +1,8 @@
+{
+  "choices": [
+    {
+      "message": { "role": "assistant", "content": null, "refusal": "declined" },
+      "finish_reason": "stop"
+    }
+  ]
+}

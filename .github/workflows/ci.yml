@@ -18,7 +18,7 @@ jobs:
         run: npm install --legacy-peer-deps
       - name: Syntax check
         run: |
-          for f in start_native_engine.js unified_idle_orchestrator.js valhallaQueueEngine.js shifting_staircase_router.js agentCrossTalkBus.js distro/watchdog.js os/app.js health/health.js lib/valhallaReflexionEngine.js; do
+          for f in start_native_engine.js unified_idle_orchestrator.js valhallaQueueEngine.js shifting_staircase_router.js agentCrossTalkBus.js distro/watchdog.js os/app.js health/health.js lib/valhallaReflexionEngine.js lib/provider-router.js lib/provider-health.js customer/local-qwen-relay.js customer/smoke.mjs provider-harness/lib/*.js; do
             node --check "$f"
           done
           sh -n scripts/build_static_mesh.sh

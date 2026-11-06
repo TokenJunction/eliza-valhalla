@@ -6,7 +6,7 @@
     "worker": "node valhallaWorker.js",
     "build": "python scripts/build-site.py",
     "validate:env": "node scripts/validateEnv.js",
-    "test": "node --test workers/*.test.mjs app/performance.test.cjs os/*.test.cjs lib/*.test.cjs valhallaQueueEngine.test.cjs shifting_staircase_router.test.cjs agentCrossTalkBus.test.cjs scripts/validateEnv.test.cjs"
+    "test": "node --test workers/*.test.mjs app/performance.test.cjs os/*.test.cjs lib/*.test.cjs customer/*.test.cjs provider-harness/test/*.cjs valhallaQueueEngine.test.cjs shifting_staircase_router.test.cjs agentCrossTalkBus.test.cjs scripts/validateEnv.test.cjs"
   },
   "engines": {
     "node": ">=22"

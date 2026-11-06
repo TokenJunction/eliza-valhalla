@@ -4,6 +4,7 @@ const path = require('node:path');
 require('dotenv').config();
 const express = require('express');
 const integrations = require('./lib/integrations');
+const providerHealth = require('./lib/provider-health');
 const { validateEnv } = require('./scripts/validateEnv');
 const {
   createValhallaQueueEngine,
@@ -25,7 +26,7 @@ const types = {
   '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml',
   '.mp4': 'video/mp4', '.md': 'text/markdown; charset=utf-8',
 };
-const hidden = /(^|[\\/])(\.[^\\/]*|(node_modules|workers|supabase|scripts|lib|valhalla-elizaos)([\\/]|$))/;
+const hidden = /(^|[\\/])(\.[^\\/]*|(node_modules|workers|supabase|scripts|lib|customer|provider-harness|valhalla-elizaos)([\\/]|$))/;
 
 function resolve(urlPath) {
   const rel = path.normalize(decodeURIComponent(urlPath.split('?')[0])).replace(/^([\\/]|\.\.)+/, '');
@@ -86,6 +87,13 @@ async function handleHealth(req, res) {
     await integrations.cacheSet('health:snapshot', health, 15);
   }
   sendJson(res, health.status === 'degraded' ? 503 : 200, { ...health, origin: publicOrigin });
+}
+
+async function handleProviderHealth(req, res) {
+  const limit = await integrations.rateLimit(`provider-health:${clientIp(req)}`, 60, 60);
+  if (!limit.allowed) return sendJson(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
+  // Readiness only. This does not call a model and does not change the gauge snapshot.
+  sendJson(res, 200, providerHealth.collectProviderRoutes(process.env));
 }
 
 async function handleDispatch(req, res) {
@@ -169,6 +177,9 @@ app.use(async (req, res) => {
   }
   if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
     return handleHealth(req, res).catch(() => sendJson(res, 500, { error: 'health_failed' }));
+  }
+  if (pathname === '/api/provider/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+    return handleProviderHealth(req, res).catch(() => sendJson(res, 500, { error: 'provider_health_failed' }));
   }
   if (pathname.startsWith('/api/valhalla/') && (req.method === 'GET' || req.method === 'POST')) {
     return proxyToEliza(req, res);

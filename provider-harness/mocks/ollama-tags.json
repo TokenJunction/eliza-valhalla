@@ -1,0 +1,6 @@
+{
+  "models": [
+    { "name": "qwen2.5-coder:14b", "size": 1 },
+    { "name": "llama3.2", "size": 1 }
+  ]
+}
