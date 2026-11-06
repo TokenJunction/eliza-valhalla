@@ -1,4 +1,5 @@
 import { getStylePresets } from "@elizaos/host/protocol";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import type { AuthCallbackDeepLinkOutcome } from "./native-smoke";
 // FIRST side-effect: repair the same-origin WebSocket base for the plain-web
 // served bundle before the `client` singleton can dial its socket. The dev
@@ -1888,6 +1889,7 @@ function mountReactApp(): void {
         <Suspense fallback={null}>
           <RenderTelemetryProfiler id="AppRoot">
             {mainTree}
+            <SpeedInsights />
           </RenderTelemetryProfiler>
         </Suspense>
       </StrictMode>
