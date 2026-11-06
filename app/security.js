@@ -42,6 +42,25 @@
   }
 
   function load() {
+    var codeBox = document.getElementById("emailCode");
+    if (codeBox && !codeBox.dataset.bound) {
+      codeBox.dataset.bound = "1";
+      codeBox.checked = read().secondFactor !== false;
+      codeBox.addEventListener("change", function () {
+        var next = read();
+        next.secondFactor = codeBox.checked;
+        localStorage.setItem(KEY, JSON.stringify(next));
+        var url = base();
+        var token = sessionStorage.getItem("valhalla-auth-token") || "";
+        if (!url || !token) return;
+        fetch(url + "/auth/security", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json", authorization: "Bearer " + token },
+          body: JSON.stringify({ secondFactor: codeBox.checked })
+        }).catch(function () {});
+      });
+    }
     var box = document.getElementById("alwaysAsk");
     if (box && !box.dataset.bound) {
       box.dataset.bound = "1";
@@ -81,6 +100,7 @@
         return;
       }
       if (box) box.checked = body.alwaysAsk === true || box.checked;
+      if (codeBox) codeBox.checked = body.secondFactor !== false;
       if (devices) {
         devices.textContent = "";
         if (!(body.devices || []).length) devices.textContent = "No trusted device yet.";
@@ -112,7 +132,7 @@
   }
 
   function boot() {
-    if (!document.getElementById("alwaysAsk")) return;
+    if (!document.getElementById("alwaysAsk") && !document.getElementById("emailCode")) return;
     load();
     var gear = document.getElementById("gear");
     if (gear) gear.addEventListener("click", load);

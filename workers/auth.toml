@@ -3,6 +3,7 @@
 #   DEVICE_COOKIE_SECRET      long random string for the device cookie and the session token
 #   RESEND_API_KEY            only if Cloudflare Email Sending is not onboarded yet
 #   LEADER_EMAIL              Google-authenticated account authorized for manager access
+#   MASTER_ADMIN_EMAIL        optional second Google-authenticated owner alias
 #   AUTH_KV                   KV namespace id
 # Configure LEADER_EMAIL as a Worker secret; an unset value disables owner access.
 # Set it with: npx wrangler secret put LEADER_EMAIL --config workers/auth.toml

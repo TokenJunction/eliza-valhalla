@@ -1,7 +1,8 @@
 /** Pure sign-in rules. No secrets and no codes. */
 
 export function needSecondFactor(input) {
-  return input.codeThisLogin !== true;
+  if (input && input.secondFactor === false) return false;
+  return !input || input.codeThisLogin !== true;
 }
 
 export function codeDecision(record, now) {

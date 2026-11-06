@@ -5,7 +5,7 @@
     "start": "node valhallaMasterEngineV35.js",
     "build": "python scripts/build-site.py",
     "validate:env": "node scripts/validateEnv.js",
-    "test": "node --test workers/*.test.mjs app/performance.test.cjs lib/*.test.cjs valhallaQueueEngine.test.cjs scripts/validateEnv.test.cjs"
+    "test": "node --test workers/*.test.mjs app/performance.test.cjs lib/*.test.cjs valhallaQueueEngine.test.cjs scripts/validateEnv.test.cjs backend/test/engine.test.js backend/test/contracts.test.js"
   },
   "engines": {
     "node": ">=22"

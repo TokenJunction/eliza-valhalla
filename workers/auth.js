@@ -227,6 +227,7 @@ async function sessionFor(env, emailHash, request, codeThisLogin, googleVerified
     knownIp: knownIp,
     alwaysAsk: account.alwaysAsk === true,
     leader: false,
+    secondFactor: account.secondFactor === false ? false : true,
     codeThisLogin: codeThisLogin === true
   });
   if (need && !codeThisLogin) return { needCode: true, account: account, ipHash: ipHash };
@@ -255,15 +256,17 @@ async function sessionFor(env, emailHash, request, codeThisLogin, googleVerified
   return { needCode: false, session: session, cookie: deviceCookie(cookie) };
 }
 
-function leaderEmail(env) {
-  return String(env && env.LEADER_EMAIL ? env.LEADER_EMAIL : "").trim().toLowerCase();
+function leaderEmails(env) {
+  return [env && env.LEADER_EMAIL, env && env.MASTER_ADMIN_EMAIL]
+    .map(function (email) { return String(email || "").trim().toLowerCase(); })
+    .filter(function (email, index, emails) { return Boolean(email) && emails.indexOf(email) === index; });
 }
 
 async function isLeader(env, session) {
-  var email = leaderEmail(env);
-  if (!email || !session || session.code !== true || session.google !== true) return false;
-  var expected = await sha256(email);
-  return safeEqual(String(session.eh || ""), expected);
+  var emails = leaderEmails(env);
+  if (!emails.length || !session || session.code !== true || session.google !== true) return false;
+  var hashes = await Promise.all(emails.map(sha256));
+  return hashes.some(function (expected) { return safeEqual(String(session.eh || ""), expected); });
 }
 
 async function loginRedirect(env, emailHash, googleVerified) {
@@ -413,6 +416,7 @@ export default {
       return json({
         ok: true,
         alwaysAsk: account.alwaysAsk === true,
+        secondFactor: account.secondFactor !== false,
         devices: (account.devices || []).map(function (row) {
           return { id: row.id, city: row.city, browser: row.browser, created: row.created, last: row.last, current: row.id === session.did };
         }),
@@ -428,9 +432,14 @@ export default {
     }
     if (url.pathname === "/auth/security" && request.method === "POST") {
       var account = await accountOf(env, session.eh);
-      account.alwaysAsk = body.alwaysAsk === true;
+      if (Object.prototype.hasOwnProperty.call(body, "alwaysAsk")) account.alwaysAsk = body.alwaysAsk === true;
+      if (typeof body.secondFactor === "boolean") account.secondFactor = body.secondFactor;
       await saveAccount(env, session.eh, account);
-      return json({ ok: true, alwaysAsk: account.alwaysAsk }, 200, request);
+      return json({
+        ok: true,
+        alwaysAsk: account.alwaysAsk === true,
+        secondFactor: account.secondFactor !== false
+      }, 200, request);
     }
     return json({ ok: false, error: "not-found" }, 404, request);
   }

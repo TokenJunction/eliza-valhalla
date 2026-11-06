@@ -1,0 +1,8 @@
+{
+  "canisters": {
+    "experiment": {
+      "type": "motoko",
+      "main": "main.mo"
+    }
+  }
+}

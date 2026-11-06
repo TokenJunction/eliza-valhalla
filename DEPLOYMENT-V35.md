@@ -31,6 +31,16 @@ Configure `MASTER_ADMIN_EMAIL` and `LEADER_EMAIL` as matching server-side secret
 
 Run `npm run validate:env` to check production secrets and the server-side owner email allowlist before release. It never authenticates an HTTP request; the existing Google verification and second-factor flow remains the admin authorization boundary. The validator and deployment scripts are excluded from GitHub Pages output.
 
+## Hosts
+
+The public site stays on GitHub Pages from this branch. Render stays the default app host in `render.yaml`, with auto-deploy left off. The personal Vercel account `tokenjunction` is on the Hobby plan and `excessBillingEnabled` is false. Do not use the TokenJunction team. A personal Vercel preview is optional later and is not required. Future modules must fit a Hobby account: no paid add-ons and no assumption of an always-on server. Model calls use the customer's own key and quota. The status text is "Your provider, your quota". A free Valhalla seat does not make a provider free.
+
+`docs/site` and `develop` have no merge base. This branch starts at `3079186aa8eca791740d422fb6251afd49c1190e`. Commit `47a70d414833d182eeeec76237242acc363c7296` on `feat/supabase-redis-health` was not merged. It rewrites the public homepage and adds an OpenRouter model ladder. The Supabase and Redis health work is already in the `docs/site` history.
+
+## Customer API beside this site
+
+`backend/` is the tested customer API for a deployment the customer hosts. The root `render.yaml` does not start it, and `scripts/build-site.py` does not copy it into the GitHub Pages output. The site process can answer `GET /api/odin` and `GET /api/substrate` with an unavailable status when no workspace key is configured. It does not replace sign-in, and it does not claim that a sleeping computer ran a model. Ollama is accepted only as an HTTPS address that is not localhost. Marketplace payouts, Hive rewards, custody, and live trading stay unavailable. The Motoko sample in `experiments/motoko` is not this runtime.
+
 ## Not included in this deployment
 
 No Supabase, Render, Vercel, or Upstash resources are provisioned by this repository. No production API keys, OAuth redirect changes, signing keys, transaction executor, X/Twitter dispatcher, or automated social-posting credentials are configured. Financial chart views must use real, labeled source data; placeholder or simulated values must not be presented as live P&L.

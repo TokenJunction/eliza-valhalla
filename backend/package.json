@@ -1,0 +1,17 @@
+{
+  "name": "valhalla-backend",
+  "private": true,
+  "type": "module",
+  "version": "35.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node valhallaMasterEngineV35.js",
+    "test": "node --test test/engine.test.js test/contracts.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.49.1",
+    "redis": "4.7.0"
+  }
+}

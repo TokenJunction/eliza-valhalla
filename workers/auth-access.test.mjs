@@ -80,6 +80,17 @@ test("keeps free accounts locked and requires Google plus a verified code for ow
   });
 });
 
+test("a verified master admin alias is a leader only with Google and a code", async () => {
+  var alias = "alias@example.test";
+  var emailHash = await hash(alias);
+  var settings = env({});
+  settings.MASTER_ADMIN_EMAIL = alias;
+  var withoutGoogle = await worker.fetch(await request({ eh: emailHash, code: true }), settings);
+  assert.equal((await withoutGoogle.json()).leader, false);
+  var response = await worker.fetch(await request({ eh: emailHash, code: true, google: true }), settings);
+  assert.equal((await response.json()).leader, true);
+});
+
 test("rejects missing or invalid sessions", async () => {
   var missing = await worker.fetch(new Request("https://auth.example/auth/access"), env({}));
   assert.equal(missing.status, 401);

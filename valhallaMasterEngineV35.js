@@ -170,6 +170,23 @@ app.use(async (req, res) => {
   if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
     return handleHealth(req, res).catch(() => sendJson(res, 500, { error: 'health_failed' }));
   }
+  if (pathname === '/api/odin' || pathname === '/api/substrate') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return sendJson(res, 405, { error: 'method_not_allowed' }, { Allow: 'GET, HEAD' });
+    }
+    try {
+      const { substrateStatus } = await import('./backend/status.js');
+      const result = substrateStatus(pathname, req.method, {});
+      if (!result) return sendJson(res, 404, { error: 'not_found' });
+      if (req.method === 'HEAD') {
+        res.writeHead(result.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        return res.end();
+      }
+      return sendJson(res, result.status, result.body);
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'unavailable', offline: false });
+    }
+  }
   if (pathname.startsWith('/api/valhalla/') && (req.method === 'GET' || req.method === 'POST')) {
     return proxyToEliza(req, res);
   }

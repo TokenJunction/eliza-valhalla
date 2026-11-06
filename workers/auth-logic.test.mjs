@@ -5,6 +5,8 @@ import { browserName, codeDecision, maskEmail, needSecondFactor, validEmail } fr
 test("every login needs a code until this login has entered one", () => {
   assert.equal(needSecondFactor({ knownDevice: true, knownIp: true, alwaysAsk: false, leader: false, codeThisLogin: false }), true);
   assert.equal(needSecondFactor({ codeThisLogin: true }), false);
+  assert.equal(needSecondFactor({ secondFactor: false, codeThisLogin: false }), false);
+  assert.equal(needSecondFactor({ secondFactor: true, codeThisLogin: false }), true);
 });
 
 test("a code allows five tries and then locks", () => {
