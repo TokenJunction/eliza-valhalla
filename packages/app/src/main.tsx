@@ -94,6 +94,7 @@ import {
   TRAY_ACTION_EVENT,
   upsertAndActivateAgentProfile,
 } from "@elizaos/ui";
+import { Analytics } from "@vercel/analytics/react";
 import { installAndroidNativeAgentFetchBridge } from "./renderer/transports/android-native-agent-transport";
 /**
  * Renderer boot entry and composition root for the cross-platform Eliza app
@@ -1888,6 +1889,7 @@ function mountReactApp(): void {
         <Suspense fallback={null}>
           <RenderTelemetryProfiler id="AppRoot">
             {mainTree}
+            <Analytics />
           </RenderTelemetryProfiler>
         </Suspense>
       </StrictMode>

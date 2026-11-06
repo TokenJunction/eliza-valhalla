@@ -14,6 +14,7 @@ import { registerPublicCloudSurfaces } from "./renderer/cloud-registration";
 import "@elizaos/ui/styles";
 import "./renderer-build-stamp";
 
+import { Analytics } from "@vercel/analytics/react";
 import * as React from "react";
 import { lazy, Suspense, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -87,6 +88,7 @@ function mountPublicWebEntry(): void {
               NetworkHomePage ? <NetworkHomePage /> : undefined
             }
           />
+          <Analytics />
         </Suspense>
       </React.StrictMode>
     </ErrorBoundary>,
