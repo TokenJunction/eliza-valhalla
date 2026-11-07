@@ -69,6 +69,15 @@ The desk and the phone have no send or withdraw control. Wallet keys stay on the
 
 See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
+### X posts
+
+The X helper is `social/valhalla-x`. It previews only until you pass `--live`, and a post also needs `"approved": true` in `social/queue.json`. It does not like, follow, send direct messages, or reply. Full steps are in [social/README.md](social/README.md).
+
+```bash
+python3 social/valhalla-x draft
+python3 social/valhalla-x post --id 1
+```
+
 <img src="docs/valhalla/acceleration.png" alt="ACCELERATION desk" width="100%" />
 
 <img src="docs/valhalla/acceleration-night.png" alt="ACCELERATION night desk" width="100%" />

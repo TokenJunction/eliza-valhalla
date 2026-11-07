@@ -59,6 +59,8 @@ packages/ui/src/components/shell/__e2e__/output-frame-glitch/
 
 .env
 .env.production
+# Local X post counter for social/valhalla-x. Never commit it.
+social/.x-posts.json
 # Trading bot wallet key files. Never commit these.
 wallet*.json
 **/wallet*.json

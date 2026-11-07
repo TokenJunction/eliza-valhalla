@@ -1,0 +1,23 @@
+name: Valhalla social
+
+on:
+  schedule:
+    - cron: "15 14 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - social/**
+      - .github/workflows/valhalla-social.yml
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the dry run
+        run: python3 social/test_valhalla_x.py
+      - name: Show drafts
+        run: python3 social/valhalla-x draft

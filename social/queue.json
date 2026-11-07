@@ -1,0 +1,88 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "slug": "tip-status",
+      "text": "Valhalla shows your desk status on the phone. Keys stay on the computer. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 2,
+      "slug": "tip-no-send",
+      "text": "The Valhalla phone has no send and no withdraw. Move funds in your own wallet app. Crypto is risky. Not financial advice.",
+      "approved": false
+    },
+    {
+      "id": 3,
+      "slug": "tip-pair",
+      "text": "Pair Valhalla with the desk on your PC. The app still opens if the PC is off. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 4,
+      "slug": "tip-recover",
+      "text": "Recover in Valhalla restarts the loop only when no position is open. Crypto is risky. Not financial advice.",
+      "approved": false
+    },
+    {
+      "id": 5,
+      "slug": "tip-stops",
+      "text": "In Valhalla, stops stay on when new buys are paused. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 6,
+      "slug": "demo-vertical",
+      "text": "Watch the Valhalla vertical demo. It is sample data, not your account. Crypto is risky. Not financial advice. https://valhalla-app.xyz/media/valhalla-demo-story.mp4",
+      "approved": false
+    },
+    {
+      "id": 7,
+      "slug": "demo-desk",
+      "text": "The Valhalla 9:16 clip shows the desk, alerts, and the risk guard. Demo data only. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 8,
+      "slug": "launch-pro",
+      "text": "Valhalla Pro is $9.99/month when checkout is connected. It does not promise profit. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 9,
+      "slug": "launch-apk",
+      "text": "The Valhalla Android APK is on GitHub Releases. Google Play is not open yet. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 10,
+      "slug": "launch-company",
+      "text": "Valhalla is a product of TokenJunction LLC. Support is hello@valhalla-app.xyz. Crypto is risky. Not financial advice.",
+      "approved": false
+    },
+    {
+      "id": 11,
+      "slug": "security-custody",
+      "text": "Valhalla is non-custodial. The app never sends, withdraws, or moves your funds. Crypto is risky. Not financial advice.",
+      "approved": false
+    },
+    {
+      "id": 12,
+      "slug": "security-keys",
+      "text": "Valhalla keys stay on your device. Admins never DM you first. Do not share a seed phrase. Crypto is risky. Not financial advice.",
+      "approved": false
+    },
+    {
+      "id": 13,
+      "slug": "security-license",
+      "text": "A Valhalla license key is not a wallet key. Valhalla will not ask for a seed phrase. Crypto is risky. Not financial advice. https://valhalla-app.xyz",
+      "approved": false
+    },
+    {
+      "id": 14,
+      "slug": "security-readonly",
+      "text": "Valhalla stays read-only until you arm live on the PC. There is no withdraw button. Crypto is risky. Not financial advice.",
+      "approved": false
+    }
+  ]
+}
