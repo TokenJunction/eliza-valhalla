@@ -37,10 +37,10 @@ import {
 } from "./steward-sidecar/process-management";
 import {
   CREDENTIALS_FILE,
-  DEFAULT_MAX_RESTARTS,
   DEFAULT_PORT,
   INITIAL_BACKOFF_MS,
   MAX_BACKOFF_MS,
+  resolveStewardMaxRestarts,
   type StewardCredentials,
   type StewardSidecarConfig,
   type StewardSidecarStatus,
@@ -142,9 +142,9 @@ export class StewardSidecar {
   constructor(config: StewardSidecarConfig) {
     this.config = {
       port: DEFAULT_PORT,
-      maxRestarts: DEFAULT_MAX_RESTARTS,
       ...config,
       dataDir: resolveDataDir(config.dataDir),
+      maxRestarts: resolveStewardMaxRestarts(config.maxRestarts),
     };
     this.status = {
       state: "stopped",

@@ -26,6 +26,7 @@ import type { ServiceRouteConfig } from "@elizaos/contracts";
 import { MISSED_SCHEDULED_OCCURRENCES_SETTING } from "@elizaos/core";
 import { buildElizaCloudServiceRoute } from "@elizaos/host/protocol";
 import type { RoutingPreferences } from "@elizaos/plugin-native-inference/model-catalog/routing-preferences";
+import { modelRouteBudgetBlocksPaidRoute } from "./model-route-budget.js";
 
 export type NativeRuntimeProfileId = "native" | "cloud";
 
@@ -272,6 +273,11 @@ export async function applyNativeCloudRuntimeProfile(
   const large = env.ELIZAOS_CLOUD_LARGE_MODEL;
   if (!small || !large || env.ELIZAOS_CLOUD_BASE_URL !== apiBaseUrl)
     throw new Error("Native Cloud inference binding is incomplete");
+  if (modelRouteBudgetBlocksPaidRoute(env)) {
+    throw new Error(
+      "Configured model route budget does not allow a paid provider route",
+    );
+  }
   const store = stores ?? (await defaultStores());
   const config = store.loadConfig();
   const { apiKey: _desktopKey, ...cloud } = config.cloud ?? {};
@@ -308,6 +314,11 @@ export async function applyNativeDirectRuntimeProfile(
     env.ELIZAOS_CLOUD_USE_INFERENCE !== "false"
   )
     throw new Error("Native direct inference binding is incomplete");
+  if (modelRouteBudgetBlocksPaidRoute(env)) {
+    throw new Error(
+      "Configured model route budget does not allow a paid provider route",
+    );
+  }
   const store = stores ?? (await defaultStores());
   const config = store.loadConfig();
   const { apiKey: _desktopKey, ...cloud } = config.cloud ?? {};

@@ -67,6 +67,20 @@ export interface StewardCredentials extends StewardCredentialCheckpoint {
 
 export const DEFAULT_PORT = 3200;
 export const DEFAULT_MAX_RESTARTS = 5;
+/** Highest crash-restart count a sidecar config can request. */
+export const STEWARD_RESTART_HARD_MAX = 10;
+
+/**
+ * Crash restarts stay finite. An omitted value keeps the default of 5.
+ * Zero keeps the no-restart setting. Invalid numbers fail closed at zero
+ * so a bad value cannot restart without a stop. Values above the hard
+ * ceiling are clamped.
+ */
+export function resolveStewardMaxRestarts(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_MAX_RESTARTS;
+  if (!Number.isSafeInteger(value) || value < 0) return 0;
+  return Math.min(value, STEWARD_RESTART_HARD_MAX);
+}
 export const HEALTH_CHECK_INTERVAL_MS = 500;
 export const HEALTH_CHECK_TIMEOUT_MS = 30_000;
 export const INITIAL_BACKOFF_MS = 1_000;

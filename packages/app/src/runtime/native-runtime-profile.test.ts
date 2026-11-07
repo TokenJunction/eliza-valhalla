@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   applyNativeCloudRuntimeProfile,
+  applyNativeDirectRuntimeProfile,
   applyNativeRuntimeProfileEnvironment,
   MISSED_OCCURRENCES_ENV,
   NATIVE_RUNTIME_PROFILES,
@@ -203,6 +204,19 @@ describe("applying a profile before boot", () => {
     });
   });
 
+  test("a spent model route budget does not enable a paid cloud route", async () => {
+    const { value, state } = stores({});
+    await expect(
+      applyNativeCloudRuntimeProfile(
+        { ...env("native"), ELIZA_MODEL_ROUTE_MAX_CALLS: "0" },
+        { apiBaseUrl: API_BASE },
+        value,
+      ),
+    ).rejects.toThrow(/paid provider route/);
+    expect(state.saved).toBeUndefined();
+    expect(state.routing).toBeUndefined();
+  });
+
   test("an incomplete or foreign binding writes nothing", async () => {
     const cases: NodeJS.ProcessEnv[] = [
       { ...env(), ELIZAOS_CLOUD_SMALL_MODEL: "" },
@@ -218,6 +232,26 @@ describe("applying a profile before boot", () => {
       expect(state.saved).toBeUndefined();
       expect(state.routing).toBeUndefined();
     }
+  });
+
+  test("a spent model route budget does not enable a paid direct route", async () => {
+    const { value, state } = stores({});
+    await expect(
+      applyNativeDirectRuntimeProfile(
+        {
+          ELIZA_RUNTIME_PROFILE: "native",
+          ELIZA_PROVIDER: "cerebras",
+          CEREBRAS_API_KEY: "fixture-inference-key",
+          CEREBRAS_SMALL_MODEL: "qwen-3.8-27b",
+          CEREBRAS_LARGE_MODEL: "qwen-3.8-27b",
+          ELIZAOS_CLOUD_USE_INFERENCE: "false",
+          ELIZA_MODEL_ROUTE_MAX_CALLS: "0",
+        },
+        value,
+      ),
+    ).rejects.toThrow(/paid provider route/);
+    expect(state.saved).toBeUndefined();
+    expect(state.routing).toBeUndefined();
   });
 });
 

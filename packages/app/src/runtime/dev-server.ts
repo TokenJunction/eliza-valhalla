@@ -73,7 +73,10 @@ import {
 } from "./dev-memory-heartbeat.js";
 import { warnStalePluginDists } from "./dev-plugin-dist-staleness.js";
 import { prepareNativeRuntimeForBoot } from "./native-runtime-boot.js";
-import { resolveRuntimeBootstrapFailure } from "./runtime-bootstrap-policy.js";
+import {
+  resolveRuntimeBootRecoveryBudget,
+  resolveRuntimeBootstrapFailure,
+} from "./runtime-bootstrap-policy.js";
 import {
   mergedRecoverySkipPlugins,
   restoreOperatorSkipPlugins,
@@ -350,6 +353,7 @@ async function bootstrapRuntime(reason: string): Promise<void> {
     }
     const failure = resolveRuntimeBootstrapFailure({
       attempt: runtimeBootAttempt,
+      budget: resolveRuntimeBootRecoveryBudget(process.env),
       err,
       firstFailureAt: runtimeBootFirstFailureAt,
       now,
@@ -369,7 +373,7 @@ async function bootstrapRuntime(reason: string): Promise<void> {
       scheduleRuntimeBootstrap(failure.delayMs, "retry");
     } else {
       logger.error(
-        `${getLogPrefix()} Runtime bootstrap failed (${failure.lastError}). Startup halted until the PGlite issue is fixed.`,
+        `${getLogPrefix()} Runtime bootstrap failed (${failure.lastError}). Startup halted.`,
       );
     }
   } finally {

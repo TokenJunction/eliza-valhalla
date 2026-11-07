@@ -21,7 +21,16 @@
  * prewarms its own voice stack; an unconditional generic probe duplicated that
  * work, made a potentially billable cloud call, and emitted boot errors on
  * healthy text-only installs.
+ *
+ * When `ELIZA_MODEL_ROUTE_MAX_CALLS` is set, each warmup attempt consumes one
+ * call from that cap and stops before the provider when the cap is spent.
+ * An unset cap keeps the existing two transient retries.
  */
+
+import {
+  consumeModelRouteCall,
+  modelRouteBudgetBlocksPaidRoute,
+} from "./model-route-budget.js";
 
 /** Minimal runtime surface we need — avoids importing the heavy AgentRuntime. */
 export interface VoiceWarmupRuntime {
@@ -116,6 +125,9 @@ async function withRetry(
 ): Promise<void> {
   let attempt = 0;
   while (true) {
+    if (!consumeModelRouteCall()) {
+      throw new Error("configured model route budget exceeded");
+    }
     try {
       await fn();
       return;
@@ -123,6 +135,7 @@ async function withRetry(
       const msg = err instanceof Error ? err.message : String(err);
       const isTransient = /\b(429|503)\b/.test(msg);
       if (!isTransient || attempt >= maxRetries) throw err;
+      if (modelRouteBudgetBlocksPaidRoute(process.env)) throw err;
       attempt++;
       await new Promise((r) => setTimeout(r, delayMs * attempt));
     }
