@@ -75,6 +75,6 @@ test('the public site has no repository link or paper desk entry', () => {
   assert.match(read('website/app/index.html'), /location\.replace\('\/'\)/);
   assert.match(read('website/os/session.js'), /location\.replace\('\/'\)/);
   assert.match(read('website/os/index.html'), /id="desktop" hidden/);
-  assert.match(read('supabase/migrations/20261110000000_profiles.sql'), /auth\.uid\(\) = id/);
-  assert.match(read('supabase/migrations/20261110000000_profiles.sql'), /account_level text not null default 'free'/);
+  assert.equal(fs.existsSync(path.join(root, 'supabase/migrations/20261110000000_profiles.sql')), false);
+  assert.doesNotMatch(read('website/os/session.js'), /from\(['"]profiles/);
 });

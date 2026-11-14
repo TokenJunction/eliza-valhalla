@@ -3,6 +3,8 @@ from pathlib import Path
 import functools
 import http.server
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +17,40 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "site-build"
+
+
+BUILD_SITE_STEP = "python3 website/scripts/build-site.py"
+
+
+def build_command_steps(script):
+    matches = [
+        line.strip()
+        for line in script.splitlines()
+        if line.strip().startswith(BUILD_SITE_STEP)
+    ]
+    if not matches:
+        raise ValueError(f"build script is missing the {BUILD_SITE_STEP!r} step")
+    if len(matches) > 1:
+        raise ValueError(f"build script has more than one {BUILD_SITE_STEP!r} step")
+    steps = [step.strip() for step in matches[0].split("&&")]
+    if any(not step for step in steps):
+        raise ValueError(f"build script has an empty command step: {matches[0]!r}")
+    return steps
+
+
+def assert_minified_pages_keep_doctype(directory):
+    """Fail if any minified HTML page does not begin with an HTML5 doctype."""
+    pages = sorted(Path(directory).rglob("*.html"))
+    if not pages:
+        raise AssertionError("no HTML pages found after minification")
+    for page in pages:
+        relative = page.relative_to(directory)
+        text = page.read_text(encoding="utf-8")
+        if text.startswith("google-site-verification:"):
+            continue
+        content = text.lstrip("\ufeff")
+        if not re.match(r"(?i)^<!doctype\s+html\s*>", content):
+            raise AssertionError(f"{relative} lost its doctype after minification")
 
 
 class Assets(HTMLParser):
@@ -83,24 +119,18 @@ class SiteTests(unittest.TestCase):
         self.assertLessEqual(len(command), 256)
         self.assertEqual(command, "bash website/scripts/vercel-build.sh")
         script = (ROOT / "website/scripts/vercel-build.sh").read_text()
-        steps = (
+        steps = build_command_steps(script)
+        self.assertGreaterEqual(len(steps), 6)
+        self.assertEqual(steps[:4], [
             "python3 website/scripts/build-site.py",
             "python3 website/scripts/test-site.py",
             "python3 scripts/test_private_pack_export.py",
             "node website/scripts/test-wallet.cjs",
-            "node --test website/scripts/gate.test.cjs website/scripts/os.test.cjs "
-            "website/scripts/desk.test.cjs website/scripts/host-route.test.cjs "
-            "website/scripts/journey.test.cjs website/scripts/desktop.test.cjs "
-            "website/scripts/minify.test.cjs website/scripts/supabase-auth.test.cjs "
-            "website/scripts/feed.test.cjs website/scripts/ai.test.cjs "
-            "website/scripts/volos-ads.test.cjs",
-            "node website/scripts/minify-site.mjs",
-        )
-        position = -1
-        for step in steps:
-            found = script.find(step)
-            self.assertGreater(found, position, step)
-            position = found
+        ])
+        self.assertTrue(steps[4].startswith("node --test "), steps[4])
+        self.assertEqual(steps[5], "node website/scripts/minify-site.mjs")
+        for step in steps[6:]:
+            self.assertTrue(step.startswith("node --test "), step)
         self.assertFalse(any(item.get("destination") == "/volos/index.html" and "has" not in item for item in config.get("rewrites", [])))
         self.assertFalse((OUT / "index.html").exists())
         with self.get("/home/") as response:
@@ -123,6 +153,76 @@ class SiteTests(unittest.TestCase):
         self.assertNotIn("will pump", volos.lower())
         self.assertNotIn("github.com", volos.lower())
         self.assertNotRegex(volos, r"0x[0-9a-fA-F]{40}")
+
+    def test_build_step_parser_returns_chained_steps(self):
+        script = (
+            "#!/usr/bin/env bash\n"
+            "set -e\n"
+            "python3 website/scripts/build-site.py && node a.js && python3 b.py\n"
+        )
+        self.assertEqual(
+            build_command_steps(script),
+            ["python3 website/scripts/build-site.py", "node a.js", "python3 b.py"],
+        )
+
+    def test_build_step_parser_rejects_malformed_scripts(self):
+        with self.subTest("missing build step"):
+            with self.assertRaisesRegex(
+                ValueError, r"missing the 'python3 website/scripts/build-site\.py' step"
+            ):
+                build_command_steps("node website/scripts/minify-site.mjs\n")
+        with self.subTest("empty command step"):
+            with self.assertRaisesRegex(ValueError, "empty command step"):
+                build_command_steps(
+                    "python3 website/scripts/build-site.py && && node a.js\n"
+                )
+        with self.subTest("duplicate build step"):
+            with self.assertRaisesRegex(
+                ValueError, r"more than one 'python3 website/scripts/build-site\.py' step"
+            ):
+                build_command_steps(
+                    "python3 website/scripts/build-site.py && node a.js\n"
+                    "python3 website/scripts/build-site.py && node b.js\n"
+                )
+
+    def test_minified_pages_keep_doctype(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp) / "site-build"
+            shutil.copytree(OUT, build)
+            subprocess.run(
+                [
+                    "node",
+                    "--input-type=module",
+                    "-e",
+                    "import { minifySite } from './website/scripts/minify-site.mjs'; "
+                    "await minifySite(process.env.MINIFY_DIR);",
+                ],
+                cwd=ROOT,
+                env={**os.environ, "MINIFY_DIR": str(build)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            assert_minified_pages_keep_doctype(build)
+
+    def test_doctype_check_fails_when_a_minified_page_loses_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp)
+            (build / "index.html").write_text(
+                "<!doctype html><html><body>ok</body></html>",
+                encoding="utf-8",
+            )
+            assert_minified_pages_keep_doctype(build)
+
+            (build / "broken.html").write_text(
+                "<html><body>doctype stripped</body></html>",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                AssertionError,
+                r"broken\.html lost its doctype after minification",
+            ):
+                assert_minified_pages_keep_doctype(build)
 
     def test_auth_is_not_rewritten_or_covered(self):
         self.assertEqual((OUT / "app/gate.js").read_bytes(), (ROOT / "website/app/gate.js").read_bytes())

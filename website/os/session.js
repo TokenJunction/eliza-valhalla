@@ -39,11 +39,6 @@
           supabase.auth.signOut().then(function () { leave(); }, leave);
         });
       }
-      return supabase.from('profiles').select('account_level').eq('id', user.id).maybeSingle().then(function (row) {
-        var badge = document.getElementById('account-level');
-        if (!badge || !row || row.error || !row.data) return;
-        badge.textContent = window.ValhallaSupabase.levelLabel(row.data.account_level);
-      }, function () {});
     });
   }).catch(leave);
 })();
