@@ -2,3 +2,5 @@
 /node_modules/
 /private-export/
 **/__pycache__/
+social/.x-posts.json
+social/__pycache__/
