@@ -1,5 +1,5 @@
 /* Public site settings. These are not secrets.
-   The live Pro checkout is the $9.99/mo launch price.
+   The live Pro checkout is $12/mo, with a 7 day free trial.
    Yearly and Lifetime stay hidden until their URLs are pasted here. */
 window.VALHALLA_SITE = {
   formspree: "",
@@ -12,8 +12,8 @@ window.VALHALLA_SITE = {
   adsenseClient: "ca-pub-6504655762357230",
   ADSENSE_SLOT: "",
   SIGNED_IN_EMAIL: "",
-  TRIAL_DAYS: 15,
-  PRO_PRICE: "$9.99/mo launch price",
+  TRIAL_DAYS: 7,
+  PRO_PRICE: "$12/mo",
   LEMONSQUEEZY_CHECKOUT_URL: "https://valhalla.lemonsqueezy.com/checkout/buy/4f959b69-81ca-45ca-8c3d-c80347b6b439",
   LEMONSQUEEZY_YEARLY_URL: "",
   LEMONSQUEEZY_LIFETIME_URL: "",

@@ -1,7 +1,7 @@
 (function () {
   var cfg = window.VALHALLA_SITE || {};
-  var price = cfg.PRO_PRICE || "$9.99/mo launch price";
-  var trialDays = Number(cfg.TRIAL_DAYS) > 0 ? Number(cfg.TRIAL_DAYS) : 15;
+  var price = cfg.PRO_PRICE || "$12/mo";
+  var trialDays = Number(cfg.TRIAL_DAYS) > 0 ? Number(cfg.TRIAL_DAYS) : 7;
   document.querySelectorAll("[data-price]").forEach(function (node) {
     node.textContent = price;
   });

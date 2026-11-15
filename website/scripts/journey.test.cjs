@@ -59,3 +59,12 @@ test('entrance and volOS copy stay honest', () => {
   assert.doesNotMatch(volos, /github\.com/i);
   assert.doesNotMatch(volos, /0x[0-9a-fA-F]{40}/);
 });
+
+test('crypto checkout uses only the signed monthly price', () => {
+  const doc = JSON.parse(fs.readFileSync(path.join(root, 'website/monetization.json'), 'utf8'));
+  const upgrade = fs.readFileSync(path.join(root, 'website/app/upgrade.js'), 'utf8');
+  assert.equal(doc.priceMonthlyUsd, 12);
+  assert.equal(doc.trialDays, 7);
+  assert.match(upgrade, /verifyMonetization/);
+  assert.doesNotMatch(upgrade, /amount=9\.99|amount=12/);
+});

@@ -11,7 +11,7 @@
   "checkoutYearlyUrl": "",
   "checkoutLifetimeUrl": "",
   "proTradeAllowance": 100,
-  "trialDays": 15,
+  "trialDays": 7,
   "offers": [
     {
       "id": "ledger",
@@ -168,7 +168,7 @@
   ],
   "cryptoReceiveAddress": "5GRqH5UQ53JEDdGKxfePq2wy6jT2inNrNGSEQk9fA49f",
   "usdcMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-  "priceMonthlyUsd": 9.99,
+  "priceMonthlyUsd": 12,
   "priceYearlyUsd": 149,
   "priceLifetimeUsd": 199,
   "offersSignature": "7OgmGVRNxGh2bIYnS5z6a2C+YK9tWkLnMIgtTBXpupQSWlmqIyS3UuK0ckGLlL3Eq9NpETMt8QX8NxtF6QCkAQ==",
