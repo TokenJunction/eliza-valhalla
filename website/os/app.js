@@ -6,9 +6,13 @@
   var startButton = document.getElementById('start-button');
   var taskbarApps = document.getElementById('taskbar-apps');
   var clock = document.getElementById('clock');
+  var activeApp = document.getElementById('active-app');
+  var spotlight = document.getElementById('spotlight');
+  var spotlightInput = document.getElementById('spotlight-input');
+  var spotlightList = document.getElementById('spotlight-list');
   var announcement = document.getElementById('desktop-announcement');
   var windows = Array.prototype.slice.call(document.querySelectorAll('[data-window]'));
-  var topZ = 10;
+  var frontZ = '40';
   var healthTimer = 0;
 
   function getWindow(name) {
@@ -25,12 +29,20 @@
   }
 
   function focusWindow(node) {
-    topZ += 1;
-    node.style.zIndex = String(topZ);
+    var open = windows.filter(function (item) { return !item.hidden; });
+    open.sort(function (a, b) { return Number(a.style.zIndex || 0) - Number(b.style.zIndex || 0); });
+    open.forEach(function (item, index) {
+      if (item !== node) item.style.zIndex = String(10 + index);
+    });
+    node.style.zIndex = '40';
     windows.forEach(function (item) {
       var button = taskbarApps.querySelector('[data-task="' + item.dataset.window + '"]');
       if (button) button.setAttribute('aria-pressed', String(item === node && !item.hidden));
     });
+    if (activeApp) {
+      var title = node.querySelector('.title-bar h2');
+      activeApp.textContent = title ? title.textContent : 'Desk';
+    }
   }
 
   function updateTaskbar() {
@@ -48,12 +60,16 @@
         if (node.dataset.minimized === 'true') {
           node.hidden = false;
           node.dataset.minimized = 'false';
-        } else if (node.style.zIndex === String(topZ)) {
-          node.dataset.minimized = 'true';
-          node.hidden = true;
+          updateTaskbar();
+          focusWindow(node);
+          return;
+        }
+        if (node.style.zIndex === frontZ) {
+          minimizeWindow(node);
+          return;
         }
         updateTaskbar();
-        if (!node.hidden) focusWindow(node);
+        focusWindow(node);
       });
       taskbarApps.appendChild(button);
     });
@@ -67,21 +83,36 @@
     updateTaskbar();
     focusWindow(node);
     setMenu(false);
+    if (spotlight) spotlight.hidden = true;
     announce(node.querySelector('.title-bar h2').textContent + ' opened.');
     if (name === 'status') checkHealth();
+  }
+
+  function showFront() {
+    var open = windows.filter(function (item) { return !item.hidden; });
+    if (!open.length) {
+      if (activeApp) activeApp.textContent = 'Desk';
+      return;
+    }
+    open.sort(function (a, b) { return Number(a.style.zIndex || 0) - Number(b.style.zIndex || 0); });
+    focusWindow(open[open.length - 1]);
   }
 
   function closeWindow(node) {
     node.hidden = true;
     node.dataset.minimized = 'false';
+    if (node.classList) node.classList.remove('is-max');
     updateTaskbar();
+    showFront();
     announce(node.querySelector('.title-bar h2').textContent + ' closed.');
   }
 
   function minimizeWindow(node) {
     node.hidden = true;
     node.dataset.minimized = 'true';
+    if (node.classList) node.classList.remove('is-max');
     updateTaskbar();
+    showFront();
     announce(node.querySelector('.title-bar h2').textContent + ' minimized.');
   }
 
@@ -125,7 +156,7 @@
   function startDrag(event) {
     var handle = event.target.closest('[data-drag-handle]');
     var node = handle && handle.closest('[data-window]');
-    if (!handle || !node || event.target.closest('button') || event.button !== 0) return;
+    if (!handle || !node || (node.classList && node.classList.contains('is-max')) || event.target.closest('button') || event.button !== 0) return;
     event.preventDefault();
     focusWindow(node);
     var startX = event.clientX;
@@ -138,7 +169,7 @@
       var dy = moveEvent.clientY - startY;
       if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
       var x = Math.max(0, Math.min(window.innerWidth - Math.min(120, rect.width), rect.left + dx));
-      var y = Math.max(0, Math.min(window.innerHeight - 60, rect.top + dy));
+      var y = Math.max(52, Math.min(window.innerHeight - 60, rect.top + dy));
       node.style.left = x + 'px';
       node.style.top = y + 'px';
       node.style.right = 'auto';
@@ -167,6 +198,7 @@
       var node = action.closest('[data-window]');
       if (action.dataset.action === 'close') closeWindow(node);
       if (action.dataset.action === 'minimize') minimizeWindow(node);
+      if (action.dataset.action === 'maximize' && node.classList) node.classList.toggle('is-max');
       return;
     }
     if (event.target.closest('[data-refresh]')) checkHealth();
@@ -182,7 +214,48 @@
       setMenu(false);
     }
   });
+  function deskApps() {
+    var seen = {};
+    var list = [];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-open]'), function (node) {
+      if (node.hidden || (spotlight && spotlight.contains(node))) return;
+      var name = node.dataset.open;
+      if (!name || seen[name]) return;
+      seen[name] = true;
+      list.push({ name: name, label: (node.textContent || name).trim() });
+    });
+    return list;
+  }
+
+  function showSpotlight(matches) {
+    if (!spotlightList) return;
+    spotlightList.replaceChildren();
+    matches.forEach(function (app) {
+      var item = document.createElement('li');
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.open = app.name;
+      button.textContent = app.label;
+      item.appendChild(button);
+      spotlightList.appendChild(item);
+    });
+  }
+
   document.addEventListener('keydown', function (event) {
+    if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+      if (!spotlight) return;
+      event.preventDefault();
+      spotlight.hidden = !spotlight.hidden;
+      if (!spotlight.hidden) {
+        showSpotlight(deskApps());
+        if (spotlightInput) spotlightInput.focus();
+      }
+      return;
+    }
+    if (spotlight && !spotlight.hidden && event.key === 'Escape') {
+      spotlight.hidden = true;
+      return;
+    }
     if (event.key !== 'Escape') return;
     if (!menu.hidden) {
       setMenu(false);
@@ -208,6 +281,13 @@
     var now = new Date();
     clock.dateTime = now.toISOString();
     clock.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  if (spotlightInput) {
+    spotlightInput.addEventListener('input', function () {
+      var query = spotlightInput.value.trim().toLowerCase();
+      showSpotlight(deskApps().filter(function (app) { return app.label.toLowerCase().indexOf(query) !== -1; }));
+    });
   }
 
   updateClock();

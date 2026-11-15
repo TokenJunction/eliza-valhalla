@@ -12,6 +12,9 @@
   <script src="/site-config.js?v=1.4.2" defer></script>
   <script src="/supabase.js" defer></script>
   <script src="/os/session.js" defer></script>
+  <script src="/os/connections.js" defer></script>
+  <script src="/os/desk-controls.js" defer></script>
+  <script src="/admin/board.js" defer></script>
   <script src="/os/feed.js" defer></script>
   <script src="/os/ai.js" defer></script>
   <script src="/os/app.js?v=1.4.2" defer></script>
@@ -46,33 +49,16 @@
 
   <main class="desktop" id="desktop" hidden>
     <header class="desktop-heading menu-bar">
-      <img src="/assets/mark.svg" alt="" width="28" height="28">
-      <div><h1>VALHALLA<span>OS</span></h1>
-      <p id="account-email"></p></div>
-      <div class="header-state"><span class="state-dot"></span> <span id="account-level">Free</span> <span class="paper-badge">LIVE TRADING OFF</span></div>
-      <button id="sign-out" class="classic-button menu-signin" type="button" hidden>Sign out</button>
+      <button class="menu-logo" id="start-button" type="button" aria-expanded="false" aria-controls="start-menu">
+        <img src="/assets/mark.svg" alt="" width="18" height="18">
+        <span>ValhallaOS</span>
+      </button>
+      <span id="active-app">Desk</span>
+      <p id="account-email" class="menu-email"></p>
+      <div class="header-state"><span class="state-dot"></span> <span id="account-level">Free</span> <span class="paper-badge">LIVE TRADING OFF</span> <time class="taskbar-clock" id="clock"></time>
+      <button id="sign-out" class="classic-button menu-signin" type="button" hidden>Sign out</button></div>
     </header>
 
-    <nav class="desktop-icons dock" aria-label="Desktop applications">
-      <button class="desktop-icon" type="button" data-open="status">
-        <svg aria-hidden="true"><use href="#icon-computer"></use></svg><span>Status</span>
-      </button>
-      <a class="desktop-icon" href="#chat-title"><svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Assistant</span></a>
-      <button class="desktop-icon" type="button" data-open="wallet">
-        <svg aria-hidden="true"><use href="#icon-wallet"></use></svg><span>Wallet</span>
-      </button>
-      <a class="desktop-icon" href="#cyber-desk-title"><svg aria-hidden="true"><use href="#icon-browser"></use></svg><span>Paper</span></a>
-      <button class="desktop-icon" type="button" data-open="memory">
-        <svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Memory</span>
-      </button>
-      <button class="desktop-icon" type="button" data-open="browser">
-        <svg aria-hidden="true"><use href="#icon-browser"></use></svg><span>Web</span>
-      </button>
-      <button class="desktop-icon" type="button" data-open="swarm">
-        <svg aria-hidden="true"><use href="#icon-network"></use></svg><span>Monitor</span>
-      </button>
-      <button class="desktop-icon" type="button" disabled title="Live trading is off. No swap is available."><span>Swap</span></button>
-    </nav>
 
     <div class="workspace">
       <section class="workspace-panel feed-panel" aria-labelledby="feed-title">
@@ -192,10 +178,7 @@
       style="left:clamp(150px, 24vw, 320px);top:76px;width:min(460px, calc(100vw - 32px));">
       <header class="title-bar" data-drag-handle>
         <h2 id="title-status">System Status</h2>
-        <div class="window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize System Status">_</button>
-          <button type="button" data-action="close" aria-label="Close System Status">×</button>
-        </div>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close System Status"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize System Status"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize System Status"></button></div>
       </header>
       <div class="window-body">
         <p class="status-banner"><span class="status-light" aria-hidden="true"></span> Read-only service probe</p>
@@ -213,10 +196,7 @@
       style="left:clamp(190px, 34vw, 440px);top:128px;width:min(420px, calc(100vw - 32px));">
       <header class="title-bar" data-drag-handle>
         <h2 id="title-swarm">A2A Swarm Monitor</h2>
-        <div class="window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize A2A Swarm Monitor">_</button>
-          <button type="button" data-action="close" aria-label="Close A2A Swarm Monitor">×</button>
-        </div>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close A2A Swarm Monitor"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize A2A Swarm Monitor"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize A2A Swarm Monitor"></button></div>
       </header>
       <div class="window-body">
         <p class="inset-panel" role="status">No live event connection is configured.</p>
@@ -229,10 +209,7 @@
       style="left:clamp(220px, 40vw, 520px);top:178px;width:min(420px, calc(100vw - 32px));">
       <header class="title-bar" data-drag-handle>
         <h2 id="title-memory">Reflexion Memory Inspector</h2>
-        <div class="window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize Reflexion Memory Inspector">_</button>
-          <button type="button" data-action="close" aria-label="Close Reflexion Memory Inspector">×</button>
-        </div>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Reflexion Memory Inspector"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Reflexion Memory Inspector"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Reflexion Memory Inspector"></button></div>
       </header>
       <div class="window-body">
         <p class="inset-panel" role="status">Procedural memory service is not connected.</p>
@@ -245,10 +222,7 @@
       style="left:clamp(32px, 12vw, 170px);top:76px;width:min(760px, calc(100vw - 32px));">
       <header class="title-bar" data-drag-handle>
         <h2 id="title-browser">Valhalla Web Shell</h2>
-        <div class="window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize Valhalla Web Shell">_</button>
-          <button type="button" data-action="close" aria-label="Close Valhalla Web Shell">×</button>
-        </div>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Valhalla Web Shell"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Valhalla Web Shell"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Valhalla Web Shell"></button></div>
       </header>
       <div class="window-body browser-body">
         <div class="address-row">
@@ -268,10 +242,7 @@
       style="left:clamp(210px, 38vw, 480px);top:100px;width:min(390px, calc(100vw - 32px));">
       <header class="title-bar" data-drag-handle>
         <h2 id="title-wallet">Web3 Wallet Bridge</h2>
-        <div class="window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize Web3 Wallet Bridge">_</button>
-          <button type="button" data-action="close" aria-label="Close Web3 Wallet Bridge">×</button>
-        </div>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Web3 Wallet Bridge"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Web3 Wallet Bridge"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Web3 Wallet Bridge"></button></div>
       </header>
       <div class="window-body">
         <p>Connect an installed wallet to share its public address. Your wallet controls permissions; this desk will not request a transaction or signature.</p>
@@ -286,24 +257,178 @@
       </div>
     </section>
 
-    <div class="start-menu" id="start-menu" hidden>
+<section class="window" id="window-connections" data-window="connections" aria-labelledby="title-connections" hidden
+      style="left:clamp(150px, 24vw, 320px);top:84px;width:min(460px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-connections">API Connections</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close API Connections"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize API Connections"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize API Connections"></button></div>
+      </header>
+      <div class="window-body connections-panel">
+        <form id="connections-form">
+          <label>Service
+            <select id="connections-service">
+              <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="helius">Helius</option>
+              <option value="stripe">Stripe</option>
+              <option value="custom">Custom REST</option>
+            </select>
+          </label>
+          <label id="connections-base-label" hidden>Base URL
+            <input id="connections-base" type="url" inputmode="url" placeholder="https://api.example.com" autocomplete="off">
+          </label>
+          <label>Key
+            <input id="connections-key" type="password" autocomplete="off">
+          </label>
+          <button id="connections-test" type="button">Test</button>
+          <button type="submit">Save</button>
+        </form>
+        <p id="connections-status" role="status"></p>
+        <ul id="connections-list"></ul>
+        <button id="connections-mint" type="button">Create ValOS API key</button>
+        <p id="connections-once" hidden></p>
+        <pre id="connections-curl" hidden></pre>
+      </div>
+    </section>
+
+    <section class="window" id="window-packs" data-window="packs" aria-labelledby="title-packs" hidden
+      style="left:clamp(190px, 30vw, 380px);top:120px;width:min(420px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-packs">Packs</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Packs"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Packs"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Packs"></button></div>
+      </header>
+      <div class="window-body connections-panel">
+        <fieldset>
+          <legend>Packs</legend>
+          <label><input id="pack-paper" type="checkbox" checked> Trading desk paper-only</label>
+          <label><input id="pack-assistant" type="checkbox"> AI assistant</label>
+          <label><input id="pack-status" type="checkbox"> Status board</label>
+        </fieldset>
+        <p>Paper-only does not turn trading on.</p>
+      </div>
+    </section>
+
+    <section class="window" id="window-proof" data-window="proof" aria-labelledby="title-proof" hidden
+      style="left:clamp(180px, 28vw, 360px);top:88px;width:min(420px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-proof">Proof board</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Proof board"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Proof board"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Proof board"></button></div>
+      </header>
+      <div class="window-body">
+        <p id="proof-status" role="status">Not checked.</p>
+        <button class="classic-button" id="proof-load" type="button">Check</button>
+      </div>
+    </section>
+
+    <section class="window" id="window-trial" data-window="trial" aria-labelledby="title-trial" hidden
+      style="left:clamp(200px, 32vw, 400px);top:120px;width:min(420px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-trial">Pro trial</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Pro trial"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Pro trial"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Pro trial"></button></div>
+      </header>
+      <div class="window-body">
+        <p id="trial-copy">Pro trial</p>
+        <button class="classic-button" id="trial-start" type="button">Start checkout</button>
+        <p id="trial-status" role="status"></p>
+        <p class="fine-print">Live trading stays off.</p>
+      </div>
+    </section>
+
+    <section class="window" id="window-overseer" data-window="overseer" aria-labelledby="title-overseer" hidden
+      style="left:clamp(160px, 26vw, 340px);top:140px;width:min(440px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-overseer">Overseer</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Overseer"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Overseer"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Overseer"></button></div>
+      </header>
+      <div class="window-body">
+        <p id="flag" class="flag"></p>
+        <ul id="checks"></ul>
+        <p class="fine-print">A recommended rollback waits for the Undo button. Nothing rolls back by itself.</p>
+      </div>
+    </section>
+
+    <section class="window" id="window-admin" data-window="admin" aria-labelledby="title-admin" hidden
+      style="left:clamp(120px, 20vw, 280px);top:72px;width:min(520px, calc(100vw - 32px));">
+      <header class="title-bar" data-drag-handle>
+        <h2 id="title-admin">Admin board</h2>
+        <div class="window-controls"><button class="traffic close" type="button" data-action="close" aria-label="Close Admin board"></button><button class="traffic min" type="button" data-action="minimize" aria-label="Minimize Admin board"></button><button class="traffic max" type="button" data-action="maximize" aria-label="Maximize Admin board"></button></div>
+      </header>
+      <div class="window-body">
+        <p id="board-status" role="status"></p>
+        <div id="drop" class="drop">Drop site files here. Paths stay inside website/ and assets/.</div>
+        <ul id="pending"></ul>
+        <button id="publish" type="button">Publish</button>
+        <p id="pr"></p>
+        <button id="ship" type="button">Ship it</button>
+        <button id="rollback" type="button">Undo</button>
+        <p class="fine-print">Publish opens a pull request. Ship it waits for checks. Undo returns production to the previous ready deployment. The server still refuses anyone who is not the owner.</p>
+      </div>
+    </section>
+
+        <div class="start-menu" id="start-menu" hidden>
       <strong>ValhallaOS</strong>
       <button type="button" data-open="status">System Status</button>
       <button type="button" data-open="swarm">A2A Monitor</button>
       <button type="button" data-open="memory">Memory Inspector</button>
       <button type="button" data-open="browser">Web Shell</button>
       <button type="button" data-open="wallet">Wallet Bridge</button>
+      <button type="button" data-open="connections">API Connections</button>
+      <button type="button" data-open="packs">Packs</button>
+      <button type="button" data-open="proof">Proof board</button>
+      <button type="button" data-open="trial">Pro trial</button>
+      <button type="button" id="admin-menu" data-open="admin" hidden>Admin board</button>
+      <button type="button" id="overseer-menu" data-open="overseer" hidden>Overseer</button>
       <hr>
-      <p>Administrative controls require a verified server session and are not available here.</p>
+      <p>Owner tools stay hidden until the server allows them.</p>
     </div>
 
     <footer class="taskbar">
-      <button class="start-button" id="start-button" type="button" aria-expanded="false" aria-controls="start-menu">
-        Tools
+    <nav class="desktop-icons dock" aria-label="Desktop applications">
+      <button class="desktop-icon" type="button" data-open="status">
+        <svg aria-hidden="true"><use href="#icon-computer"></use></svg><span>Status</span>
       </button>
+      <a class="desktop-icon" href="#chat-title"><svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Assistant</span></a>
+      <button class="desktop-icon" type="button" data-open="wallet">
+        <svg aria-hidden="true"><use href="#icon-wallet"></use></svg><span>Wallet</span>
+      </button>
+      <a class="desktop-icon" href="#cyber-desk-title"><svg aria-hidden="true"><use href="#icon-browser"></use></svg><span>Paper</span></a>
+      <button class="desktop-icon" type="button" data-open="memory">
+        <svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Memory</span>
+      </button>
+      <button class="desktop-icon" type="button" data-open="browser">
+        <svg aria-hidden="true"><use href="#icon-browser"></use></svg><span>Web</span>
+      </button>
+      <button class="desktop-icon" type="button" data-open="swarm">
+        <svg aria-hidden="true"><use href="#icon-network"></use></svg><span>Monitor</span>
+      </button>
+
+      <button class="desktop-icon" type="button" data-open="connections">
+        <svg aria-hidden="true"><use href="#icon-network"></use></svg><span>Connections</span>
+      </button>
+      <button class="desktop-icon" type="button" data-open="packs">
+        <svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Packs</span>
+      </button>
+      <button class="desktop-icon" type="button" data-open="proof">
+        <svg aria-hidden="true"><use href="#icon-computer"></use></svg><span>Proof</span>
+      </button>
+      <button class="desktop-icon" type="button" data-open="trial">
+        <svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Pro</span>
+      </button>
+      <button class="desktop-icon" id="admin-icon" type="button" data-open="admin" hidden>
+        <svg aria-hidden="true"><use href="#icon-notepad"></use></svg><span>Admin</span>
+      </button>
+      <button class="desktop-icon" id="overseer-icon" type="button" data-open="overseer" hidden>
+        <svg aria-hidden="true"><use href="#icon-network"></use></svg><span>Overseer</span>
+      </button>
+      <button class="desktop-icon" type="button" disabled title="Live trading is off. No swap is available."><span>Swap</span></button>
+    </nav>
       <div class="taskbar-apps" id="taskbar-apps" aria-label="Open applications"></div>
-      <time class="taskbar-clock" id="clock"></time>
     </footer>
+    <div id="spotlight" class="spotlight" hidden>
+      <input id="spotlight-input" type="search" placeholder="Search the desk" aria-label="Search the desk" autocomplete="off">
+      <ul id="spotlight-list"></ul>
+    </div>
+
     <p class="sr-only" id="desktop-announcement" aria-live="polite"></p>
   </main>
 </body>

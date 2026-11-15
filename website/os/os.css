@@ -1,8 +1,8 @@
 :root {
-  color-scheme: light;
-  font-family: Tahoma, "MS Sans Serif", Geneva, sans-serif;
-  color: #111;
-  background: #008080;
+  color-scheme: dark;
+  font-family: var(--font, "Segoe UI", Tahoma, sans-serif);
+  color: var(--ink, #f4efe6);
+  background: var(--bg, #090a0c);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -26,9 +26,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, iframe:focus-visibl
   height: 100dvh;
   min-height: 420px;
   overflow: hidden;
-  background-color: #008080;
-  background-image: radial-gradient(rgba(255,255,255,.07) .65px, transparent .65px);
-  background-size: 4px 4px;
+  background-color: var(--bg, #090a0c);
 }
 .desktop-heading {
   position: absolute;
@@ -448,7 +446,7 @@ button:focus-visible, select:focus-visible, a:focus-visible, iframe:focus-visibl
   .taskbar { z-index: 60; }
   .window, .browser-window {
     position: fixed;
-    top: 8px !important;
+    top: 52px !important;
     right: 8px;
     left: 8px !important;
     width: auto !important;
@@ -456,4 +454,182 @@ button:focus-visible, select:focus-visible, a:focus-visible, iframe:focus-visibl
     max-height: calc(100dvh - 76px);
   }
   .window-body { max-height: calc(100dvh - 130px); }
+}
+
+/* ValhallaOS shell. Original marks only. */
+.menu-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink, #f4efe6);
+  font-weight: 650;
+}
+.menu-logo img { display: block; }
+.menu-email { margin: 0; color: var(--muted, #b7b0a4); font-size: 12px; }
+#active-app { color: var(--muted, #b7b0a4); font-size: 13px; }
+.desktop { padding: 56px 24px 112px; }
+.desktop-heading {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  background: rgba(9, 10, 12, .84);
+  backdrop-filter: blur(16px);
+}
+.taskbar {
+  position: fixed;
+  z-index: 60;
+  top: auto;
+  right: auto;
+  bottom: 14px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 20px);
+  height: auto;
+  flex-direction: column;
+  align-items: stretch;
+  transform: translateX(-50%);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line, rgba(244, 239, 230, .14));
+  border-radius: 22px;
+  background: rgba(18, 19, 22, .78);
+  backdrop-filter: blur(18px);
+}
+.desktop-icons {
+  position: static;
+  inset: auto;
+  width: auto;
+  max-width: calc(100vw - 36px);
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  overflow-x: auto;
+}
+.desktop-icon {
+  width: 72px;
+  min-width: 72px;
+  min-height: 56px;
+  flex: 0 0 72px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 12px;
+  text-align: center;
+}
+.taskbar-apps { justify-content: center; }
+.taskbar-apps:empty { display: none; }
+.desktop-icon svg { width: 18px; height: 18px; }
+.window {
+  padding: 0;
+  border: 1px solid var(--line, rgba(244, 239, 230, .14));
+  border-radius: 16px;
+  background: rgba(18, 19, 22, .84);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(18px);
+}
+.title-bar {
+  position: relative;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line, rgba(244, 239, 230, .14));
+  border-radius: 16px 16px 0 0;
+  background: transparent;
+  color: var(--ink, #f4efe6);
+}
+.title-bar h2 { position: absolute; right: 40px; left: 40px; text-align: center; pointer-events: none; }
+.window-controls { order: -1; gap: 6px; }
+.window-controls .traffic {
+  width: 12px;
+  height: 12px;
+  min-height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font-size: 0;
+}
+@media (pointer: coarse) {
+  .window-controls .traffic { width: 44px; height: 44px; min-height: 44px; }
+}
+.traffic.close { background: #c4554a; }
+.traffic.min { background: #d7b06a; }
+.traffic.max { background: #7d9a78; }
+.window.is-max {
+  position: fixed !important;
+  top: 56px !important;
+  right: 16px !important;
+  bottom: 96px !important;
+  left: 16px !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+}
+.start-menu {
+  position: fixed;
+  z-index: 70;
+  top: 48px;
+  bottom: auto;
+  left: 12px;
+  border-radius: 14px;
+  background: rgba(18, 19, 22, .94);
+  backdrop-filter: blur(16px);
+}
+.spotlight {
+  position: fixed;
+  z-index: 80;
+  top: 16%;
+  left: 50%;
+  width: min(520px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid var(--line, rgba(244, 239, 230, .14));
+  border-radius: 16px;
+  background: rgba(18, 19, 22, .94);
+  transform: translateX(-50%);
+  backdrop-filter: blur(18px);
+}
+.spotlight[hidden] { display: none; }
+.spotlight input, .connections-panel input, .connections-panel select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line, rgba(244, 239, 230, .14));
+  border-radius: 10px;
+  background: var(--bg, #090a0c);
+  color: var(--ink, #f4efe6);
+}
+.spotlight ul, .spotlight li { margin: 0; padding: 0; list-style: none; }
+.spotlight button, #publish, #ship, #rollback {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink, #f4efe6);
+  text-align: left;
+}
+.spotlight button:hover, .spotlight button:focus-visible { background: #201a11; }
+#publish, #ship, #rollback { width: auto; margin-right: 8px; padding: 0 14px; background: var(--gold, #d7b06a); color: var(--gold-ink, #1c160e); text-align: center; }
+.connections-panel form label, .connections-panel fieldset label { display: grid; gap: 4px; margin-top: 8px; }
+.connections-panel fieldset label { display: flex; align-items: center; }
+.connections-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.drop { margin: 8px 0; padding: 16px; border: 1px dashed var(--line, rgba(244, 239, 230, .14)); border-radius: 12px; text-align: center; }
+@media (max-width: 720px) {
+  .desktop { padding: 52px 12px 116px; }
+  .desktop-heading { position: fixed; height: auto; min-height: 44px; }
+  .taskbar { right: 8px; left: 8px; width: auto; transform: none; }
+  .desktop-icons { position: static; width: auto; max-width: none; flex-direction: row; }
+  .window.is-max { top: 52px !important; right: 8px !important; bottom: 96px !important; left: 8px !important; }
 }
