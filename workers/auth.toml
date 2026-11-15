@@ -1,0 +1,83 @@
+# Sign-in Worker. Not deployed until the zone email and the client ID are ready.
+# Secrets and ids, never committed:
+#   DEVICE_COOKIE_SECRET      long random string for the device cookie and the session token
+#   SUPABASE_ANON_KEY         public publishable key, set as a Worker secret so it is explicit
+#   RESEND_API_KEY            only if Cloudflare Email Sending is not onboarded yet
+#   LEADER_EMAIL              Google-authenticated account authorized for manager access
+#   AUTH_KV                   KV namespace id
+# Set the Supabase key with:
+#   npx wrangler secret put SUPABASE_ANON_KEY --config workers/auth.toml
+# Keep AUTH_KV. Chat configuration, engagement counts, and rate limits use it.
+# Do not remove AUTH_KV from the current deployment.
+# AUTH_EMAIL is optional. The live binding name is EMAIL. A sender or domain
+# rejection returns email-sender-rejected and does not keep the login code.
+# Configure LEADER_EMAIL as a Worker secret; an unset value disables owner access.
+# Set it with: npx wrangler secret put LEADER_EMAIL --config workers/auth.toml
+# Email Sending on the valhalla-app.xyz zone can send to any inbox after the
+# domain is onboarded (Workers Paid). Before that, the EMAIL binding can send
+# only to verified destination addresses. Resend is the fallback.
+#
+# Preview only. Do not deploy the production script valhalla-auth from this change.
+# 1. Create a new KV namespace for the preview worker. Do not reuse the production id below.
+# 2. Replace REPLACE_WITH_PREVIEW_KV_ID in env.preview.
+# 3. Set DEVICE_COOKIE_SECRET, LEADER_EMAIL, and SUPABASE_ANON_KEY on valhalla-auth-preview.
+#    Use the public anon key. Do not copy or rotate production secrets.
+# 4. Deploy the preview worker only:
+#      npx wrangler deploy --config workers/auth.toml --env preview
+#    The preview migration tag is v1-auth-do and new_sqlite_classes is AuthDurableObject.
+# 5. Point a preview hostname at valhalla-auth-preview. Leave valhalla-auth in place.
+# The preview family sign-in stays off until the preview worker is configured.
+# Do not set these values on valhalla-auth. Do not store a raw password.
+# After the preview worker exists, set secrets on valhalla-auth-preview only:
+#   DEMO_AUTH_MODE=preview and AUTH_PREVIEW=1 as plain vars
+#   DEMO_USERNAME as a secret. Set it to DaisyGrace.
+#   DEMO_VERIFIER as a secret printed by: node workers/demo-verifier.mjs
+# The tool reads the password from stdin. It does not take the password as an argument.
+name = "valhalla-auth"
+main = "auth.js"
+compatibility_date = "2026-11-03"
+
+# Public client id used by the existing Google project. Supabase verifies the
+# Google identity before the Worker issues a session.
+[vars]
+GOOGLE_CLIENT_ID = "1085862906383-cmiqc9bu96uqigm73nb3jkp5vfjf9b7l.apps.googleusercontent.com"
+SUPABASE_URL = "https://girltjnrrwlyeufrcors.supabase.co"
+
+[[send_email]]
+name = "EMAIL"
+
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "9f0316ce34f84f53bf3ffa5ef31cbe72"
+
+[[durable_objects.bindings]]
+name = "AUTH_DO"
+class_name = "AuthDurableObject"
+script_name = "valhalla-auth"
+
+[[migrations]]
+tag = "v1-auth-do"
+new_sqlite_classes = ["AuthDurableObject"]
+
+[env.preview]
+name = "valhalla-auth-preview"
+
+[env.preview.vars]
+GOOGLE_CLIENT_ID = "1085862906383-cmiqc9bu96uqigm73nb3jkp5vfjf9b7l.apps.googleusercontent.com"
+SUPABASE_URL = "https://girltjnrrwlyeufrcors.supabase.co"
+
+[[env.preview.send_email]]
+name = "EMAIL"
+
+[[env.preview.kv_namespaces]]
+binding = "AUTH_KV"
+id = "REPLACE_WITH_PREVIEW_KV_ID"
+
+[[env.preview.durable_objects.bindings]]
+name = "AUTH_DO"
+class_name = "AuthDurableObject"
+script_name = "valhalla-auth-preview"
+
+[[env.preview.migrations]]
+tag = "v1-auth-do"
+new_sqlite_classes = ["AuthDurableObject"]
