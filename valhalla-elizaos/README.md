@@ -5,7 +5,7 @@ This is the starter template for ElizaOS projects.
 ## Features
 
 - Pre-configured project structure for ElizaOS development
-- Comprehensive testing setup with component and e2e tests
+- Comprehensive testing setup for component and e2e tests
 - Default character configuration with plugin integration
 - Example service, action, and provider implementations
 - TypeScript configuration for optimal developer experience
@@ -94,7 +94,7 @@ describe('Configuration', () => {
 
 // Integration test example (__tests__/integration.test.ts)
 describe('Integration: Plugin with Character', () => {
-  it('should initialize character with plugins', async () => {
+  it('should interact correctly', async () => {
     // Test interactions between components
   });
 });
@@ -127,3 +127,22 @@ Customize your project by modifying:
 
 - `src/index.ts` - Main entry point
 - `src/character.ts` - Character definition
+
+### AI room storage
+
+The authenticated Valhalla room uses a private file-backed store by default for
+local development. Production uses Supabase so the history and audit trail
+survive Render restarts:
+
+```bash
+VALHALLA_ROOM_STORAGE=supabase
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<server-only service role key>
+```
+
+The service role key must only be set on the server. The room tables have RLS
+enabled with no client policies, so they are not readable with the anon key.
+Apply `supabase/migrations/20261116220000_valhalla_room_supabase.sql` to the
+project before enabling the Supabase backend. The API keeps the same 200
+message replay window and 2,000-entry audit window; `seq` is allocated by the
+database identity columns.
