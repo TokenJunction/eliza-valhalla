@@ -2,6 +2,7 @@ import { logger, type IAgentRuntime, type Project, type ProjectAgent } from '@el
 import { character, characters, VALHALLA_ROLE_IDS, type ValhallaRoleId } from './character.ts';
 import { cerberusPlugin } from './cerberus.ts';
 import { valhallaStatusPlugin } from './plugin.ts';
+import { aiRoomPlugin } from './ai-room.ts';
 import { registerRuntime } from './runtime-registry.ts';
 import { ProjectStarterTestSuite } from './__tests__/e2e/project-starter.e2e.ts';
 
@@ -16,7 +17,9 @@ function createProjectAgent(role: ValhallaRoleId): ProjectAgent {
   return {
     character: roleCharacter,
     init: initializeAgent(role, roleCharacter.name),
-    ...(role === 'zeus' ? { plugins: [valhallaStatusPlugin], tests: [ProjectStarterTestSuite] } : {}),
+    ...(role === 'zeus'
+      ? { plugins: [valhallaStatusPlugin, aiRoomPlugin], tests: [ProjectStarterTestSuite] }
+      : {}),
     ...(role === 'cerberus' ? { plugins: [cerberusPlugin] } : {}),
   };
 }
