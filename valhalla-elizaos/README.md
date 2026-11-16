@@ -94,7 +94,7 @@ describe('Configuration', () => {
 
 // Integration test example (__tests__/integration.test.ts)
 describe('Integration: Plugin with Character', () => {
-  it('should interact correctly', async () => {
+  it('should initialize character with plugins', async () => {
     // Test interactions between components
   });
 });
