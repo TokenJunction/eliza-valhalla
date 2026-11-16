@@ -43,6 +43,12 @@ services:
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+      - key: VALHALLA_ROOM_KEY_ZEUS
+        sync: false
+      - key: VALHALLA_ROOM_KEY_CERBERUS
+        sync: false
+      - key: VALHALLA_ROOM_KEY_GORGO
+        sync: false
 
   - type: web
     name: valhalla-site
