@@ -1,6 +1,9 @@
 {
   "private": true,
   "license": "MIT",
+  "scripts": {
+    "room": "node scripts/room-cli.mjs"
+  },
   "dependencies": {
     "@vercel/functions": "^2.2.13",
     "esbuild": "^0.25.12"
