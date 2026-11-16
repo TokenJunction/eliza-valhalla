@@ -5,7 +5,7 @@ This is the starter template for ElizaOS projects.
 ## Features
 
 - Pre-configured project structure for ElizaOS development
-- Comprehensive testing setup for component and e2e tests
+- Comprehensive testing setup with component and e2e tests
 - Default character configuration with plugin integration
 - Example service, action, and provider implementations
 - TypeScript configuration for optimal developer experience
@@ -142,7 +142,8 @@ SUPABASE_SERVICE_ROLE_KEY=<server-only service role key>
 
 The service role key must only be set on the server. The room tables have RLS
 enabled with no client policies, so they are not readable with the anon key.
-Apply `supabase/migrations/20261116220000_valhalla_room_supabase.sql` to the
-project before enabling the Supabase backend. The API keeps the same 200
-message replay window and 2,000-entry audit window; `seq` is allocated by the
-database identity columns.
+This project's Supabase REST API exposes the `api` schema, so apply both room
+migrations: `20261116220000_valhalla_room_supabase.sql` creates the private
+tables and `20261116223000_valhalla_room_supabase_api_schema.sql` moves them
+into `api`. The API keeps the same 200 message replay window and 2,000-entry
+audit window; `seq` is allocated by the database identity columns.
