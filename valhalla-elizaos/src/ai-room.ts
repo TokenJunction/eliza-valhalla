@@ -110,7 +110,10 @@ export type AiRoomAuditEntry = {
   details?: Record<string, AiRoomAuditDetail>;
 };
 
-type AiRoomAuditInput = Omit<AiRoomAuditEntry, "id" | "seq" | "at" | "roomId">;
+export type AiRoomAuditInput = Omit<
+  AiRoomAuditEntry,
+  "id" | "seq" | "at" | "roomId"
+>;
 
 const AUDIT_EVENTS = new Set<AiRoomAuditEvent>([
   "message_sent",
@@ -531,6 +534,399 @@ export class AiRoomStore {
   }
 }
 
+export type AiRoomMessageStore = {
+  append: (
+    from: AiRoomRole,
+    text: string,
+    replyTo?: string,
+    at?: Date,
+  ) => AiRoomMessage | Promise<AiRoomMessage>;
+  has: (id: string) => boolean | Promise<boolean>;
+  list: (
+    after?: number,
+    limit?: number,
+  ) => AiRoomMessage[] | Promise<AiRoomMessage[]>;
+  readonly size: number;
+  ready?: () => Promise<void>;
+};
+
+export type AiRoomAuditSink = {
+  append: (
+    input: AiRoomAuditInput,
+    at?: Date,
+  ) => AiRoomAuditEntry | Promise<AiRoomAuditEntry>;
+  list: (
+    after?: number,
+    limit?: number,
+  ) => AiRoomAuditEntry[] | Promise<AiRoomAuditEntry[]>;
+  readonly size: number;
+  ready?: () => Promise<void>;
+};
+
+const ROOM_MESSAGES_TABLE = "valhalla_room_messages";
+const ROOM_AUDIT_TABLE = "valhalla_room_audit";
+
+export type RoomFetch = typeof fetch;
+
+/**
+ * Minimal PostgREST client for the two private room tables. It deliberately
+ * uses fetch instead of a database SDK so the server has no new dependency
+ * and the service-role key never leaves the Node process.
+ */
+class SupabaseRoomRest {
+  private readonly baseUrl: string;
+  private readonly key: string;
+  private readonly fetcher: RoomFetch;
+
+  constructor(baseUrl: string, key: string, fetcher: RoomFetch) {
+    this.baseUrl = baseUrl;
+    this.key = key;
+    this.fetcher = fetcher;
+  }
+
+  private headers(extra: Record<string, string> = {}): Record<string, string> {
+    return {
+      apikey: this.key,
+      Authorization: `Bearer ${this.key}`,
+      Accept: "application/json",
+      ...extra,
+    };
+  }
+
+  private async readJson(response: Response, table: string): Promise<unknown> {
+    if (!response.ok) {
+      console.error(
+        `valhalla-ai-room Supabase ${table} request failed: ${response.status}`,
+      );
+      throw new Error("room_storage_unavailable");
+    }
+    try {
+      return await response.json();
+    } catch {
+      console.error(`valhalla-ai-room Supabase ${table} returned invalid JSON`);
+      throw new Error("room_storage_unavailable");
+    }
+  }
+
+  async select(
+    table: string,
+    limit: number,
+  ): Promise<Record<string, unknown>[]> {
+    // Supabase's REST layer caps a response at 1,000 rows by default. Read
+    // the audit window in pages instead of silently loading only the first
+    // 1,000 of the requested 2,000 entries.
+    const pageSize = Math.min(1_000, limit);
+    const rows: Record<string, unknown>[] = [];
+    while (rows.length < limit) {
+      const url = new URL(`${this.baseUrl}/rest/v1/${table}`);
+      url.searchParams.set("select", "*");
+      url.searchParams.set("room_id", `eq.${AI_ROOM_ID}`);
+      url.searchParams.set("order", "seq.desc");
+      url.searchParams.set(
+        "limit",
+        String(Math.min(pageSize, limit - rows.length)),
+      );
+      url.searchParams.set("offset", String(rows.length));
+      const response = await this.fetcher(url, { headers: this.headers() });
+      const data = await this.readJson(response, table);
+      if (!Array.isArray(data) || !data.every(isRecord)) {
+        throw new Error("room_storage_unavailable");
+      }
+      rows.push(...data);
+      if (data.length < pageSize) break;
+    }
+    return rows.slice(0, limit);
+  }
+
+  async insert(
+    table: string,
+    row: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const response = await this.fetcher(`${this.baseUrl}/rest/v1/${table}`, {
+      method: "POST",
+      headers: this.headers({
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      }),
+      body: JSON.stringify(row),
+    });
+    const data = await this.readJson(response, table);
+    const record = Array.isArray(data) ? data[0] : data;
+    if (!isRecord(record)) throw new Error("room_storage_unavailable");
+    return record;
+  }
+}
+
+function createSupabaseRest(
+  env: RoomEnv,
+  fetcher: RoomFetch,
+): SupabaseRoomRest {
+  const baseUrl = envValue(env, "SUPABASE_URL").replace(/\/+$/, "");
+  const key = envValue(env, "SUPABASE_SERVICE_ROLE_KEY");
+  if (!baseUrl || !key) throw new Error("room_storage_unconfigured");
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new Error("room_storage_unconfigured");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("room_storage_unconfigured");
+  }
+  return new SupabaseRoomRest(baseUrl, key, fetcher);
+}
+
+function parseSupabaseMessage(value: Record<string, unknown>): AiRoomMessage {
+  return parseStoredMessage({
+    id: value.id,
+    seq: value.seq,
+    from: value.member,
+    text: value.text,
+    at: value.at,
+    ...(value.reply_to ? { replyTo: value.reply_to } : {}),
+  });
+}
+
+function parseSupabaseAudit(value: Record<string, unknown>): AiRoomAuditEntry {
+  return parseStoredAudit({
+    id: value.id,
+    seq: value.seq,
+    at: value.at,
+    roomId: value.room_id,
+    member: value.member,
+    event: value.event,
+    outcome: value.outcome,
+    ...(value.reason !== null && value.reason !== undefined
+      ? { reason: value.reason }
+      : {}),
+    ...(value.field !== null && value.field !== undefined
+      ? { field: value.field }
+      : {}),
+    ...(value.message_id !== null && value.message_id !== undefined
+      ? { messageId: value.message_id }
+      : {}),
+    ...(value.message_seq !== null && value.message_seq !== undefined
+      ? { messageSeq: value.message_seq }
+      : {}),
+    ...(value.details !== null && value.details !== undefined
+      ? { details: value.details }
+      : {}),
+  });
+}
+
+export type SupabaseAiRoomStoreOptions = {
+  env?: RoomEnv;
+  capacity?: number;
+  fetcher?: RoomFetch;
+};
+
+/**
+ * Supabase-backed room history. The in-memory window is exactly the same as
+ * the file store: the latest `capacity` messages are read once at startup and
+ * every append is committed before it is acknowledged. `seq` is allocated by
+ * a database identity column so restarts cannot reuse sequence numbers.
+ */
+export class SupabaseAiRoomStore implements AiRoomMessageStore {
+  private readonly messages: AiRoomMessage[] = [];
+  private readonly capacity: number;
+  private readonly rest: SupabaseRoomRest | null;
+  private readonly configError: Error | null;
+  private init: Promise<void> | null = null;
+
+  constructor(options: SupabaseAiRoomStoreOptions = {}) {
+    const capacity = options.capacity ?? MAX_MESSAGES;
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new Error("invalid_capacity");
+    }
+    this.capacity = capacity;
+    try {
+      this.rest = createSupabaseRest(
+        options.env ?? process.env,
+        options.fetcher ?? fetch,
+      );
+      this.configError = null;
+    } catch (error) {
+      this.rest = null;
+      this.configError =
+        error instanceof Error ? error : new Error("room_storage_unconfigured");
+    }
+  }
+
+  ready(): Promise<void> {
+    if (this.init) return this.init;
+    const started = this.load().catch((error: unknown) => {
+      this.init = null;
+      throw error;
+    });
+    this.init = started;
+    return started;
+  }
+
+  private async load(): Promise<void> {
+    if (!this.rest) {
+      throw this.configError ?? new Error("room_storage_unconfigured");
+    }
+    const rows = await this.rest.select(ROOM_MESSAGES_TABLE, this.capacity);
+    const records = rows.map(parseSupabaseMessage);
+    const seenIds = new Set<string>();
+    const seenSeqs = new Set<number>();
+    for (const record of records) {
+      if (seenIds.has(record.id) || seenSeqs.has(record.seq)) {
+        throw new Error("invalid_history_file");
+      }
+      seenIds.add(record.id);
+      seenSeqs.add(record.seq);
+    }
+    records.sort((left, right) => left.seq - right.seq);
+    this.messages.push(...records.slice(-this.capacity));
+  }
+
+  async append(
+    from: AiRoomRole,
+    text: string,
+    replyTo?: string,
+    at = new Date(),
+  ): Promise<AiRoomMessage> {
+    if (!MEMBERS.has(from)) throw new Error("not_a_member");
+    if (typeof text !== "string" || !text.trim()) {
+      throw new Error("invalid_text");
+    }
+    await this.ready();
+    if (!this.rest) throw new Error("room_storage_unavailable");
+    const id = randomUUID();
+    const row = await this.rest.insert(ROOM_MESSAGES_TABLE, {
+      id,
+      room_id: AI_ROOM_ID,
+      member: from,
+      text,
+      at: at.toISOString(),
+      reply_to: replyTo ?? null,
+    });
+    const message = parseSupabaseMessage(row);
+    if (message.id !== id) throw new Error("room_storage_unavailable");
+    this.messages.push(message);
+    this.messages.sort((left, right) => left.seq - right.seq);
+    if (this.messages.length > this.capacity) {
+      this.messages.splice(0, this.messages.length - this.capacity);
+    }
+    return message;
+  }
+
+  has(id: string): boolean {
+    return this.messages.some((message) => message.id === id);
+  }
+
+  list(after = 0, limit = DEFAULT_LIMIT): AiRoomMessage[] {
+    return this.messages
+      .filter((message) => message.seq > after)
+      .slice(0, limit);
+  }
+
+  get size(): number {
+    return this.messages.length;
+  }
+}
+
+export type SupabaseAiRoomAuditLogOptions = {
+  env?: RoomEnv;
+  capacity?: number;
+  fetcher?: RoomFetch;
+};
+
+export class SupabaseAiRoomAuditLog implements AiRoomAuditSink {
+  private readonly entries: AiRoomAuditEntry[] = [];
+  private readonly capacity: number;
+  private readonly rest: SupabaseRoomRest | null;
+  private readonly configError: Error | null;
+  private init: Promise<void> | null = null;
+
+  constructor(options: SupabaseAiRoomAuditLogOptions = {}) {
+    const capacity = options.capacity ?? MAX_AUDIT_ENTRIES;
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new Error("invalid_audit_capacity");
+    }
+    this.capacity = capacity;
+    try {
+      this.rest = createSupabaseRest(
+        options.env ?? process.env,
+        options.fetcher ?? fetch,
+      );
+      this.configError = null;
+    } catch (error) {
+      this.rest = null;
+      this.configError =
+        error instanceof Error ? error : new Error("room_storage_unconfigured");
+    }
+  }
+
+  ready(): Promise<void> {
+    if (this.init) return this.init;
+    const started = this.load().catch((error: unknown) => {
+      this.init = null;
+      throw error;
+    });
+    this.init = started;
+    return started;
+  }
+
+  private async load(): Promise<void> {
+    if (!this.rest) {
+      throw this.configError ?? new Error("room_storage_unconfigured");
+    }
+    const rows = await this.rest.select(ROOM_AUDIT_TABLE, this.capacity);
+    const records = rows.map(parseSupabaseAudit);
+    const seenIds = new Set<string>();
+    const seenSeqs = new Set<number>();
+    for (const record of records) {
+      if (seenIds.has(record.id) || seenSeqs.has(record.seq)) {
+        throw new Error("invalid_audit_file");
+      }
+      seenIds.add(record.id);
+      seenSeqs.add(record.seq);
+    }
+    records.sort((left, right) => left.seq - right.seq);
+    this.entries.push(...records.slice(-this.capacity));
+  }
+
+  async append(
+    input: AiRoomAuditInput,
+    at = new Date(),
+  ): Promise<AiRoomAuditEntry> {
+    await this.ready();
+    if (!this.rest) throw new Error("room_storage_unavailable");
+    const id = randomUUID();
+    const row = await this.rest.insert(ROOM_AUDIT_TABLE, {
+      id,
+      at: at.toISOString(),
+      room_id: AI_ROOM_ID,
+      member: input.member,
+      event: input.event,
+      outcome: input.outcome,
+      reason: input.reason ?? null,
+      field: input.field ?? null,
+      message_id: input.messageId ?? null,
+      message_seq: input.messageSeq ?? null,
+      details: input.details ?? null,
+    });
+    const entry = parseSupabaseAudit(row);
+    if (entry.id !== id) throw new Error("room_storage_unavailable");
+    this.entries.push(entry);
+    this.entries.sort((left, right) => left.seq - right.seq);
+    if (this.entries.length > this.capacity) {
+      this.entries.splice(0, this.entries.length - this.capacity);
+    }
+    return entry;
+  }
+
+  list(after = 0, limit = DEFAULT_LIMIT): AiRoomAuditEntry[] {
+    return this.entries.filter((entry) => entry.seq > after).slice(0, limit);
+  }
+
+  get size(): number {
+    return this.entries.length;
+  }
+}
+
 function envValue(env: RoomEnv, key: string): string {
   const value = env[key];
   return typeof value === "string" ? value.trim() : "";
@@ -656,14 +1052,53 @@ function enforceRateLimit(
   return decision;
 }
 
-function recordRateLimit(
-  audit: AiRoomAuditLog,
+async function appendAudit(
+  audit: AiRoomAuditSink,
+  input: AiRoomAuditInput,
+  at: Date,
+): Promise<AiRoomAuditEntry | null> {
+  try {
+    return await audit.append(input, at);
+  } catch (error) {
+    // Audit persistence is best-effort, matching the file-backed store. A
+    // failed audit write must not turn a committed message into a 503.
+    console.error(
+      "valhalla-ai-room audit persistence failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+}
+
+async function ensureReady(
+  sink: AiRoomMessageStore | AiRoomAuditSink,
+  response: RouteResponse,
+  error: string,
+  label: string,
+): Promise<boolean> {
+  if (!sink.ready) return true;
+  try {
+    await sink.ready();
+    return true;
+  } catch (cause) {
+    console.error(
+      `valhalla-ai-room ${label} storage unavailable:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    reject(response, 503, error);
+    return false;
+  }
+}
+
+async function recordRateLimit(
+  audit: AiRoomAuditSink,
   member: AiRoomRole,
   bucket: AiRoomRateLimitBucket,
   at: Date,
   decision: AiRoomRateLimitDecision,
-): void {
-  audit.append(
+): Promise<void> {
+  await appendAudit(
+    audit,
     {
       member,
       event: "rate_limited",
@@ -675,16 +1110,17 @@ function recordRateLimit(
   );
 }
 
-function rejectSend(
-  audit: AiRoomAuditLog,
+async function rejectSend(
+  audit: AiRoomAuditSink,
   member: AiRoomRole,
   at: Date,
   response: RouteResponse,
   status: number,
   reason: string,
   field?: string,
-): void {
-  audit.append(
+): Promise<void> {
+  await appendAudit(
+    audit,
     {
       member,
       event: "message_rejected",
@@ -736,8 +1172,8 @@ function parseLimit(value: unknown): number | null {
 
 export type AiRoomPluginOptions = {
   env?: RoomEnv;
-  store?: AiRoomStore;
-  auditLog?: AiRoomAuditLog;
+  store?: AiRoomMessageStore;
+  auditLog?: AiRoomAuditSink;
   auditFile?: string | null;
   historyFile?: string | null;
   rateLimits?: Partial<
@@ -748,6 +1184,8 @@ export type AiRoomPluginOptions = {
 
 export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
   const env = options.env ?? process.env;
+  const useSupabase =
+    envValue(env, "VALHALLA_ROOM_STORAGE").toLowerCase() === "supabase";
   const configuredHistoryFile = envValue(env, "VALHALLA_ROOM_HISTORY_FILE");
   const historyFile =
     options.historyFile === null
@@ -755,7 +1193,10 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
       : (options.historyFile ??
         (configuredHistoryFile || DEFAULT_HISTORY_FILE));
   const store =
-    options.store ?? new AiRoomStore(MAX_MESSAGES, { file: historyFile });
+    options.store ??
+    (useSupabase
+      ? new SupabaseAiRoomStore({ env, capacity: MAX_MESSAGES })
+      : new AiRoomStore(MAX_MESSAGES, { file: historyFile }));
   const now = options.now ?? (() => new Date());
   const rateLimiter = new AiRoomRateLimiter(options.rateLimits);
   const configuredAuditFile = envValue(env, "VALHALLA_ROOM_AUDIT_FILE");
@@ -763,7 +1204,11 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
     options.auditFile === null
       ? null
       : (options.auditFile ?? (configuredAuditFile || DEFAULT_AUDIT_FILE));
-  const audit = options.auditLog ?? new AiRoomAuditLog({ file: auditFile });
+  const audit =
+    options.auditLog ??
+    (useSupabase
+      ? new SupabaseAiRoomAuditLog({ env, capacity: MAX_AUDIT_ENTRIES })
+      : new AiRoomAuditLog({ file: auditFile }));
 
   return {
     name: "valhalla-ai-room",
@@ -789,7 +1234,17 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             response,
           );
           if (!rate.allowed) {
-            recordRateLimit(audit, member, "info", at, rate);
+            await recordRateLimit(audit, member, "info", at, rate);
+            return;
+          }
+          if (
+            !(await ensureReady(
+              store,
+              response,
+              "history_unavailable",
+              "message",
+            ))
+          ) {
             return;
           }
           response.status(200).json(roomInfo(member, store.size));
@@ -814,18 +1269,28 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             response,
           );
           if (!rate.allowed) {
-            recordRateLimit(audit, member, "send", at, rate);
+            await recordRateLimit(audit, member, "send", at, rate);
+            return;
+          }
+          if (
+            !(await ensureReady(
+              store,
+              response,
+              "history_unavailable",
+              "message",
+            ))
+          ) {
             return;
           }
 
           const body = asRecord(request.body);
           if (!body) {
-            rejectSend(audit, member, at, response, 400, "body_required");
+            await rejectSend(audit, member, at, response, 400, "body_required");
             return;
           }
           for (const field of FORBIDDEN_FIELDS) {
             if (Object.prototype.hasOwnProperty.call(body, field)) {
-              rejectSend(
+              await rejectSend(
                 audit,
                 member,
                 at,
@@ -840,37 +1305,64 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
 
           const text = readText(body.text);
           if (!text) {
-            rejectSend(audit, member, at, response, 400, "text_required");
+            await rejectSend(audit, member, at, response, 400, "text_required");
             return;
           }
           if (text.length > MAX_TEXT) {
-            rejectSend(audit, member, at, response, 413, "text_too_long");
+            await rejectSend(audit, member, at, response, 413, "text_too_long");
             return;
           }
           if (CONTROL_CHARS.test(text)) {
-            rejectSend(audit, member, at, response, 400, "invalid_text");
+            await rejectSend(audit, member, at, response, 400, "invalid_text");
             return;
           }
 
           if (body.replyTo !== undefined && typeof body.replyTo !== "string") {
-            rejectSend(audit, member, at, response, 400, "invalid_reply_to");
+            await rejectSend(
+              audit,
+              member,
+              at,
+              response,
+              400,
+              "invalid_reply_to",
+            );
             return;
           }
           const replyTo = readText(body.replyTo);
           if (replyTo && !MESSAGE_ID.test(replyTo)) {
-            rejectSend(audit, member, at, response, 400, "invalid_reply_to");
+            await rejectSend(
+              audit,
+              member,
+              at,
+              response,
+              400,
+              "invalid_reply_to",
+            );
             return;
           }
-          if (replyTo && !store.has(replyTo)) {
-            rejectSend(audit, member, at, response, 400, "reply_to_not_found");
+          if (replyTo && !(await store.has(replyTo))) {
+            await rejectSend(
+              audit,
+              member,
+              at,
+              response,
+              400,
+              "reply_to_not_found",
+            );
             return;
           }
 
           let message: AiRoomMessage;
           try {
-            message = store.append(member, text, replyTo || undefined, at);
+            message = await store.append(
+              member,
+              text,
+              replyTo || undefined,
+              at,
+            );
           } catch (error) {
-            audit.append(
+            await appendAudit(
+              audit,
               {
                 member,
                 event: "message_rejected",
@@ -882,7 +1374,8 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             reject(response, 503, "history_unavailable");
             return;
           }
-          audit.append(
+          await appendAudit(
+            audit,
             {
               member,
               event: "message_sent",
@@ -922,13 +1415,24 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             response,
           );
           if (!rate.allowed) {
-            recordRateLimit(audit, member, "read", at, rate);
+            await recordRateLimit(audit, member, "read", at, rate);
+            return;
+          }
+          if (
+            !(await ensureReady(
+              store,
+              response,
+              "history_unavailable",
+              "message",
+            ))
+          ) {
             return;
           }
 
           const after = parseCursor(request.query?.after);
           if (after === null) {
-            audit.append(
+            await appendAudit(
+              audit,
               {
                 member,
                 event: "messages_read",
@@ -942,7 +1446,8 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
           }
           const limit = parseLimit(request.query?.limit);
           if (limit === null) {
-            audit.append(
+            await appendAudit(
+              audit,
               {
                 member,
                 event: "messages_read",
@@ -955,11 +1460,12 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             return;
           }
 
-          const messages = store.list(after, limit);
+          const messages = await store.list(after, limit);
           const next = messages.length
             ? messages[messages.length - 1].seq
             : after;
-          audit.append(
+          await appendAudit(
+            audit,
             {
               member,
               event: "messages_read",
@@ -998,13 +1504,19 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             response,
           );
           if (!rate.allowed) {
-            recordRateLimit(audit, member, "audit", at, rate);
+            await recordRateLimit(audit, member, "audit", at, rate);
+            return;
+          }
+          if (
+            !(await ensureReady(audit, response, "audit_unavailable", "audit"))
+          ) {
             return;
           }
 
           const after = parseCursor(request.query?.after);
           if (after === null) {
-            audit.append(
+            await appendAudit(
+              audit,
               {
                 member,
                 event: "audit_read",
@@ -1018,7 +1530,8 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
           }
           const limit = parseLimit(request.query?.limit);
           if (limit === null) {
-            audit.append(
+            await appendAudit(
+              audit,
               {
                 member,
                 event: "audit_read",
@@ -1031,9 +1544,10 @@ export function createAiRoomPlugin(options: AiRoomPluginOptions = {}): Plugin {
             return;
           }
 
-          const entries = audit.list(after, limit);
+          const entries = await audit.list(after, limit);
           const next = entries.length ? entries[entries.length - 1].seq : after;
-          audit.append(
+          await appendAudit(
+            audit,
             {
               member,
               event: "audit_read",
