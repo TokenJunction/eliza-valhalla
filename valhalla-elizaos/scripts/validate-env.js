@@ -59,6 +59,7 @@ export function validateEnvironment(env = process.env) {
     errors,
   );
   validateUrl(env, 'UPSTASH_REDIS_REST_URL', ['https:'], errors);
+  validateUrl(env, 'CLERK_MCP_URL', ['https:'], errors);
 
   for (const key of DISABLED_CAPABILITIES) {
     if (/^(1|true|yes|on)$/i.test(String(env[key] || '').trim())) {

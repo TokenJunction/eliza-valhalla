@@ -2,6 +2,26 @@
 
 This is the starter template for ElizaOS projects.
 
+## Valkyrie proposal-only coding
+
+The Valhalla runtime includes a proposal-only coding action for sandboxed patch testing. It cannot approve or deploy. See `VALKYRIE-CODING.md` for configuration, role grants and the human approval path.
+
+## Clerk toolkit
+
+The runtime also ports Clerk's Cursor plugin: 20 bundled Clerk Agent Skills plus a read-only Clerk MCP client. It can read Clerk setup/framework/RBAC/billing/webhooks/testing guidance and read-only account data, but it cannot change Clerk applications, users, domains or production settings. See `CLERK-TOOLKIT.md`.
+
+## Solana mint snapshots
+
+Zeus, Cerberus and Gorgo expose the read-only `SOLANA_MINT_SNAPSHOT` action. It reads an SPL mint through Solana RPC and never signs, sends, swaps or touches a wallet.
+
+- Each agent has its own fixed-window rate limit: 10 requests per 60 seconds by default. A limited request returns `rate_limited` with `retryAfter`, `limit` and `windowMs`; no RPC call is made.
+- Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to keep the counters in Upstash Redis. Counters are incremented and given a TTL atomically, so all server replicas share one budget per agent. Without those two variables, the limiter stays in-process and each replica has its own budget.
+- If Redis is configured but unavailable, the action fails closed with `rate_limit_unavailable` and makes no RPC call; it does not fall back to per-replica counters. Fix the Redis connection or unset both variables to return to the in-process limiter.
+- Denied requests log `mint_snapshot_rate_limited` with the agent, agent name, retry delay, limit, window and limiter backend. Redis outages log `mint_snapshot_rate_limit_unavailable` with the same agent context and retry delay.
+- Set `SOLANA_MINT_RATE_LIMIT` and `SOLANA_MINT_RATE_WINDOW_MS`, or pass a `rateLimit` option when creating the plugin, to tune the limit. The limit is per agent, not global, so one agent cannot exhaust another agent's budget.
+- Name and symbol are filled from the RPC's DAS `getAsset` response when available. If DAS is unavailable or returns no metadata, they are read from the mint's on-chain Metaplex Token Metadata account. The fallback does not fetch the off-chain metadata URI, so `logo` remains null in that case; a missing or unsafe logo never fails the core mint snapshot. DAS logos must be HTTPS URLs.
+- Mint metadata is cached in memory for 60 seconds per plugin instance, keyed by the RPC URL and mint. Repeated snapshots still read the mint account, but skip the DAS and Metaplex metadata RPCs during the window. Empty metadata is cached too, so a token without metadata does not trigger repeated lookups. The cache is bounded to 256 entries, uses a fixed TTL, and does not persist across restarts.
+
 ## Features
 
 - Pre-configured project structure for ElizaOS development
@@ -72,6 +92,7 @@ src/
 - `elizaos test` - Run all tests (component + e2e)
 - `elizaos test component` - Run only component tests
 - `elizaos test --type e2e` - Run only E2E tests
+- `bun run test:smoke:port` - opt-in startup smoke test: starts with `PORT` set and `SERVER_PORT` unset, then checks `/health` (override the wait with `SMOKE_TIMEOUT_MS`).
 
 ### Cypress tests
 

@@ -56,7 +56,7 @@
     "vite": "^7.2.6"
   },
   "scripts": {
-    "start": "node scripts/validate-env.js && elizaos start",
+    "start": "node scripts/validate-env.js && node scripts/start.js",
     "dev": "elizaos dev",
     "build": "bun run build.ts",
     "test:health": "bun test src/__tests__/health.test.ts",
@@ -64,10 +64,13 @@
     "type-check": "tsc --noEmit",
     "validate:env": "node scripts/validate-env.js",
     "test:env": "node --test scripts/validate-env.test.mjs scripts/install-test-deps.test.mjs",
+    "test:smoke:port": "SMOKE_PORT_TEST=1 node --test scripts/smoke-port.test.mjs",
+    "test:skill": "node --test skills/valkyrie-sandboxed-coder/test/*.test.mjs",
+    "test:clerk": "bun test src/__tests__/clerk-toolkit.test.ts && node --test skills/clerk-toolkit/test/*.test.mjs",
     "type-check:watch": "tsc --noEmit --watch",
     "test:component": "bun test src/__tests__",
     "test:e2e": "elizaos test --type e2e",
-    "test": "bun run test:component && bun run test:e2e",
+    "test": "bun run test:component && bun run test:skill && bun run test:clerk && bun run test:e2e",
     "test:coverage": "bun test src/__tests__ --coverage",
     "test:watch": "bun test src/__tests__ --watch",
     "test:install": "node scripts/install-test-deps.js",

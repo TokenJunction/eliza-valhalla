@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { resolvePort } from './start.js';
 import { validateEnvironment } from './validate-env.js';
 
 test('allows optional integrations outside production', () => {
@@ -46,6 +48,17 @@ test('validates integration URL protocols', () => {
   );
 });
 
+test('requires the Clerk MCP endpoint to use HTTPS', () => {
+  assert.throws(
+    () => validateEnvironment({ CLERK_MCP_URL: 'http://mcp.clerk.com/mcp' }),
+    /CLERK_MCP_URL must be a valid URL using https:/,
+  );
+  assert.equal(
+    validateEnvironment({ CLERK_MCP_URL: 'https://mcp.clerk.com/mcp' }),
+    true,
+  );
+});
+
 test('requires encrypted Supabase and Redis URLs in production', () => {
   assert.throws(
     () =>
@@ -74,4 +87,21 @@ test('refuses to enable execution capabilities that are not implemented', () => 
     () => validateEnvironment({ VALHALLA_TRADING_ENABLED: 'true' }),
     /VALHALLA_TRADING_ENABLED must remain false/,
   );
+});
+
+test('start command resolves SERVER_PORT, then Render PORT', () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+  );
+  assert.match(manifest.scripts.start, /node scripts\/start\.js/);
+  assert.deepEqual(resolvePort({ SERVER_PORT: '4100', PORT: '3000' }), {
+    port: '4100',
+    source: 'SERVER_PORT',
+  });
+  assert.deepEqual(resolvePort({ PORT: '4100' }), { port: '4100', source: 'PORT' });
+  assert.deepEqual(resolvePort({ SERVER_PORT: '', PORT: '4100' }), {
+    port: '4100',
+    source: 'PORT',
+  });
+  assert.deepEqual(resolvePort({}), { port: '3000', source: 'default' });
 });

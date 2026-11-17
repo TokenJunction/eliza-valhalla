@@ -39,6 +39,12 @@ test('public health route reports production capabilities as disabled', async ()
       vaultActions: 'disabled',
       zeusIdleJobs: 'disabled',
       perUserSandboxProvisioning: 'not_configured',
+      codingProposals: 'propose_only',
+      codingApproval: 'human_only',
+      codingDeploy: 'disabled',
+      clerkSkills: 'bundled',
+      clerkMcpTools: 'read_only',
+      clerkMcpMutations: 'disabled',
     },
   });
 });

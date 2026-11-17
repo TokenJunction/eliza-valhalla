@@ -24,6 +24,8 @@ run_test_suite "TypeScript checks" "bun run type-check"
 run_test_suite "Format checks" "bun run format:check"
 run_test_suite "Build" "bun run build"
 run_test_suite "Unit tests (Bun)" "bun run test:component"
+run_test_suite "Valkyrie skill tests (Node)" "bun run test:skill"
+run_test_suite "Clerk toolkit tests" "bun run test:clerk"
 run_test_suite "E2E tests (ElizaOS)" "bun run test:e2e"
 run_test_suite "Cypress component tests" "bun run cypress:component"
 

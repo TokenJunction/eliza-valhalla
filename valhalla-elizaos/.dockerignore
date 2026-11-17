@@ -7,6 +7,7 @@ bun.lockb
 
 # Runtime data
 pids
+.coding-skill/
 *.pid
 *.seed
 *.pid.lock
@@ -160,7 +161,8 @@ docker-compose*.yml
 # Documentation
 README.md
 docs/
-*.md
+# Markdown is intentionally included: Clerk skills load their SKILL.md and
+# references at runtime from the image.
 
 # Tests
 tests/

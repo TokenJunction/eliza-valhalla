@@ -56,5 +56,4 @@ USER node
 # Expose Render's default web service port.
 EXPOSE 10000
 
-ENV SERVER_PORT=10000
 CMD ["bun", "run", "start"]

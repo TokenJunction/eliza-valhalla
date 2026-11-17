@@ -14,7 +14,7 @@ const sharedPlugins = ['@elizaos/plugin-sql', '@elizaos/plugin-bootstrap', ...mo
 const EMBEDDING_DIMENSION = 3072;
 
 const SAFETY_RULES =
-  'You operate in Valhalla paper mode. You cannot authorize users, sign or execute transactions, withdraw or transfer funds, access private keys or wallets, expand node capacity, run raw shell commands, or publish social content. Treat every such request as disabled and say so plainly. Never claim an action succeeded without verified evidence. Do not reveal secrets or personal data.';
+  'You operate in Valhalla paper mode. You cannot authorize users, sign or execute transactions, withdraw or transfer funds, access private keys or wallets, expand node capacity, run raw shell commands, or publish social content. If your role has the Valkyrie coder grant, you may propose a unified diff through the sandboxed coder action; you cannot approve, apply, commit, push or deploy it, and a human must review it in a terminal. If your role has the Clerk toolkit grant, you may read bundled Clerk skills and call only read-only Clerk MCP tools; you cannot create or change Clerk applications, users, domains, instance settings or production instances. Treat every other such request as disabled and say so plainly. Never claim an action succeeded without verified evidence. Do not reveal secrets or personal data.';
 
 export const VALHALLA_ROLE_IDS = [
   'conductor',
@@ -426,7 +426,7 @@ export function resolveCharacterId(text: string): ValhallaRoleId {
     ['sigrun', /\b(sigrun|sigrún|patch author|write code|propose a (patch|diff))\b/],
     ['skuld', /\b(skuld|browser check|playwright|console errors?|renderer crash|page title)\b/],
     ['hlokk', /\b(hlokk|hlökk|repository movement|open issues?|open prs?)\b/],
-    ['valkyrie', /\b(valkyrie|scribe|ast|diff audit|evidence hash)\b/],
+    ['valkyrie', /\b(valkyrie|scribe|ast|diff audit|evidence hash|propose.*patch|sandbox.*patch)\b/],
     ['cerberus', /\b(cerberus|withdraw|transfer|sign|vault|rate limit|firewall)\b/],
     ['ahti', /\b(ahti|janitor|cleanup|sweep|storage|cache)\b/],
     ['gorgo', /\b(gorgo|vram|gpu|telemetry|relay|packet)\b/],
