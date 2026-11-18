@@ -5,6 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const integrations = require('./lib/integrations');
 const executionCapability = require('./lib/execution-capability');
+const adminSession = require('./lib/admin-session');
 const valkyrieProposals = require('./lib/valkyrie-proposals');
 const { validateEnv } = require('./scripts/validateEnv');
 const {
@@ -97,6 +98,11 @@ async function handleHealth(req, res) {
 async function handleValkyrieProposals(req, res) {
   const limit = await integrations.rateLimit(`valkyrie-proposals:${clientIp(req)}`, 60, 60);
   if (!limit.allowed) return sendJson(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
+  const admin = await adminSession.requireAdmin(req);
+  if (!admin.ok) {
+    const headers = admin.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {};
+    return sendJson(res, admin.status, { error: admin.error }, headers);
+  }
   try {
     const queue = await valkyrieProposals.listPendingProposals();
     return sendJson(res, 200, { ...queue, checkedAt: new Date().toISOString() });

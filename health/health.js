@@ -139,19 +139,48 @@
     list.replaceChildren(el('div', 'proposal-empty', 'No proposal data is available.'));
   }
 
+  function renderProposalAdminOnly() {
+    var list = document.getElementById('proposals');
+    var note = document.getElementById('proposalNote');
+    var count = document.getElementById('proposalCount');
+    count.textContent = 'Admin only';
+    note.textContent = 'Sign in with the owner account to view pending proposals.';
+    list.replaceChildren(el('div', 'proposal-empty', 'Proposal details are private.'));
+  }
+
+  function proposalToken() {
+    try { return sessionStorage.getItem('valhalla-auth-token') || ''; } catch (err) { return ''; }
+  }
+
   function loadProposals() {
-    fetch('/api/valkyrie/proposals', { cache: 'no-store' })
+    var token = proposalToken();
+    if (!token) {
+      renderProposalAdminOnly();
+      return;
+    }
+
+    fetch('/api/valkyrie/proposals', {
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: { authorization: 'Bearer ' + token }
+    })
       .then(function (r) {
-        return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+        return r.json().catch(function () { return {}; }).then(function (body) {
+          return { ok: r.ok, status: r.status, body: body };
+        });
       })
       .then(function (res) {
+        if (res.status === 401 || res.status === 403) {
+          renderProposalAdminOnly();
+          return;
+        }
         if (!res.ok || !res.body || res.body.error) {
-          renderProposalError('Proposal queue endpoint returned ' + (res.body && res.body.error ? res.body.error : 'an error') + '.');
+          renderProposalError('The proposal queue is temporarily unavailable.');
           return;
         }
         renderProposals(res.body);
       })
-      .catch(function () { renderProposalError('Could not reach /api/valkyrie/proposals.'); });
+      .catch(function () { renderProposalError('Could not reach the proposal queue.'); });
   }
 
   function load() {
