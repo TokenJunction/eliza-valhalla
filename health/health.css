@@ -21,3 +21,13 @@ code { background:var(--card); padding:1px 6px; border-radius:4px; }
 .pill { display:inline-block; padding:3px 12px; border-radius:999px; font-size:.85rem; font-weight:600; border:1px solid currentColor; }
 .pill-ok { color:var(--ok); } .pill-bad { color:var(--bad); } .pill-warn { color:var(--warn); } .pill-wait { color:var(--muted); }
 @media (prefers-reduced-motion: no-preference) { .pill { transition:color .2s; } }
+.section-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.section-head h2 { margin:2em 0 .6em; }
+.proposal-list { display:grid; gap:10px; }
+.proposal { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+.proposal-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.proposal-id { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.9rem; overflow-wrap:anywhere; }
+.proposal-meta { color:var(--muted); font-size:.85rem; margin:6px 0 0; }
+.proposal-files { margin:8px 0 0; padding-left:18px; color:var(--muted); font-size:.9rem; }
+.proposal-files li { overflow-wrap:anywhere; }
+.proposal-empty { border:1px dashed var(--line); border-radius:12px; padding:16px; color:var(--muted); }

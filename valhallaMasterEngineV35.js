@@ -4,6 +4,8 @@ const path = require('node:path');
 require('dotenv').config();
 const express = require('express');
 const integrations = require('./lib/integrations');
+const executionCapability = require('./lib/execution-capability');
+const valkyrieProposals = require('./lib/valkyrie-proposals');
 const { validateEnv } = require('./scripts/validateEnv');
 const {
   createValhallaQueueEngine,
@@ -80,12 +82,34 @@ async function handleHealth(req, res) {
   const limit = await integrations.rateLimit(`health:${clientIp(req)}`, 60, 60);
   if (!limit.allowed) return sendJson(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
   // Redis-backed 15s cache keeps probe load constant regardless of dashboard traffic.
-  let health = await integrations.cacheGet('health:snapshot');
+  // Include the resolved execution hash so a mode change cannot reuse a snapshot
+  // from the previous execution state.
+  const execution = executionCapability.describe();
+  const cacheKey = integrations.healthCacheKey(execution);
+  let health = await integrations.cacheGet(cacheKey);
   if (!health) {
-    health = await integrations.collectHealth();
-    await integrations.cacheSet('health:snapshot', health, 15);
+    health = await integrations.collectHealth(process.env, execution);
+    await integrations.cacheSet(cacheKey, health, 15);
   }
   sendJson(res, health.status === 'degraded' ? 503 : 200, { ...health, origin: publicOrigin });
+}
+
+async function handleValkyrieProposals(req, res) {
+  const limit = await integrations.rateLimit(`valkyrie-proposals:${clientIp(req)}`, 60, 60);
+  if (!limit.allowed) return sendJson(res, 429, { error: 'rate_limited' }, { 'Retry-After': '60' });
+  try {
+    const queue = await valkyrieProposals.listPendingProposals();
+    return sendJson(res, 200, { ...queue, checkedAt: new Date().toISOString() });
+  } catch {
+    // Do not expose the configured filesystem path or proposal contents.
+    return sendJson(res, 503, {
+      configured: Boolean(process.env.VALKYRIE_PROJECT_ROOT),
+      pendingCount: 0,
+      proposals: [],
+      truncated: false,
+      error: 'proposal_queue_unavailable',
+    });
+  }
 }
 
 async function handleDispatch(req, res) {
@@ -149,6 +173,7 @@ app.use(async (req, res) => {
     });
   }
   if (pathname === '/healthz') {
+    const execution = executionCapability.describe();
     return sendJson(res, 200, {
       ok: true,
       origin: publicOrigin,
@@ -157,6 +182,27 @@ app.use(async (req, res) => {
       eliza: Boolean(elizaBase),
       queueWorkers: Boolean(queueEngine && queueEngine.getStatus().ready && queueEngine.getStatus().role !== 'producer'),
       adminConfigured: Boolean(process.env.LEADER_EMAIL),
+      executionMode: execution.mode,
+      liveTrading: execution.liveTrading,
+      executionSigned: execution.signing === 'available',
+    });
+  }
+  if (pathname === '/api/execution/capability' && (req.method === 'GET' || req.method === 'HEAD')) {
+    const issued = executionCapability.issue();
+    if (!issued.available) {
+      return sendJson(res, 503, {
+        error: 'execution_capability_unavailable',
+        mode: issued.config.mode,
+        reason: issued.reason || 'signing_unavailable',
+      });
+    }
+    return sendJson(res, 200, {
+      mode: issued.capability.mode,
+      expiresAt: issued.capability.expiresAt,
+      payload: issued.payload,
+      signature: issued.signature,
+      publicKey: issued.publicKey,
+      keyId: issued.keyId,
     });
   }
   if (pathname === '/api/valhalla/dispatch') {
@@ -170,6 +216,14 @@ app.use(async (req, res) => {
   if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
     return handleHealth(req, res).catch(() => sendJson(res, 500, { error: 'health_failed' }));
   }
+  if (pathname === '/api/valkyrie/proposals') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return sendJson(res, 405, { error: 'method_not_allowed' }, { Allow: 'GET, HEAD' });
+    }
+    return handleValkyrieProposals(req, res).catch(() =>
+      sendJson(res, 503, { error: 'proposal_queue_unavailable' }),
+    );
+  }
   if (pathname.startsWith('/api/valhalla/') && (req.method === 'GET' || req.method === 'POST')) {
     return proxyToEliza(req, res);
   }
@@ -180,9 +234,10 @@ app.use(async (req, res) => {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     return res.end('Not found');
   }
+  const healthAsset = file.startsWith(path.join(root, 'health') + path.sep);
   res.writeHead(200, {
     'Content-Type': types[path.extname(file).toLowerCase()] || 'application/octet-stream',
-    'Cache-Control': file.endsWith('.html') ? 'no-cache' : 'public, max-age=3600',
+    'Cache-Control': file.endsWith('.html') || healthAsset ? 'no-cache' : 'public, max-age=3600',
   });
   if (req.method === 'HEAD') return res.end();
   fs.createReadStream(file).pipe(res);
@@ -238,3 +293,6 @@ process.once('SIGTERM', () => {
     process.exitCode = 1;
   });
 });
+
+// Exported for HTTP-level tests that need to start and stop the real server.
+module.exports = { app, server };

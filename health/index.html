@@ -33,7 +33,16 @@
   <section aria-labelledby="safe-h">
     <h2 id="safe-h">Safety switches</h2>
     <div id="safety" class="grid"></div>
-    <p class="muted">Execution is paper-only. Trading, social posting and key storage stay disabled until explicitly enabled server-side.</p>
+    <p id="executionNote" class="muted">Execution mode is checked server-side. No live capability is assumed from a client flag.</p>
+  </section>
+
+  <section aria-labelledby="proposals-h">
+    <div class="section-head">
+      <h2 id="proposals-h">Valkyrie proposals</h2>
+      <span id="proposalCount" class="muted">…</span>
+    </div>
+    <p id="proposalNote" class="muted">Loading pending patches…</p>
+    <div id="proposals" class="proposal-list" aria-live="polite"></div>
   </section>
 
   <section aria-labelledby="agents-h">
