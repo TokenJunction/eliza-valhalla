@@ -69,7 +69,7 @@ function executeSafeTask(targetEngine, taskName, payload) {
 
 function isAuthorizedDispatch(authorization, expectedToken) {
   if (!expectedToken || typeof authorization !== 'string') return false;
-  const match = /^Bearer ([^\s]+)$/.exec(authorization);
+  const match = /^Bearer (\S+)$/.exec(authorization);
   if (!match) return false;
 
   const actual = Buffer.from(match[1]);
@@ -77,8 +77,63 @@ function isAuthorizedDispatch(authorization, expectedToken) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+function queueEndpointLabel(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}:${parsed.port || 6379}`;
+  } catch {
+    return 'invalid';
+  }
+}
+
+function timeoutAfter(ms, code) {
+  let timer;
+  const promise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(code)), ms);
+  });
+  return { promise, cancel: () => clearTimeout(timer) };
+}
+
+async function selectQueueBackend({ candidates, RedisClient, startupTimeoutMs, signal }) {
+  let failure = 'redis_unavailable';
+  for (const candidate of candidates) {
+    if (signal?.aborted) throw new Error('startup_cancelled');
+    const { url, backend } = candidate;
+    const connection = new RedisClient(url, {
+      maxRetriesPerRequest: null,
+      connectTimeout: Math.min(startupTimeoutMs, 5000),
+      retryStrategy: (attempt) => Math.min(1000 * 2 ** Math.min(attempt - 1, 4), 15000),
+    });
+    let onAbort;
+    const aborted = signal ? new Promise((_, reject) => {
+      onAbort = () => reject(new Error('startup_cancelled'));
+      signal.addEventListener('abort', onAbort, { once: true });
+    }) : null;
+    const timeout = timeoutAfter(Math.min(startupTimeoutMs, 5000), 'backend_timeout');
+    try {
+      const ping = connection.ping();
+      await (aborted ? Promise.race([ping, timeout.promise, aborted]) : Promise.race([ping, timeout.promise]));
+      return {
+        connection,
+        backend,
+        endpoint: queueEndpointLabel(url),
+      };
+    } catch (error) {
+      connection.disconnect();
+      if (error.message === 'startup_cancelled') throw error;
+      failure = error.message === 'backend_timeout' ? 'startup_timeout' : 'redis_unavailable';
+    } finally {
+      timeout.cancel();
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    }
+  }
+  throw new Error(failure);
+}
+
 async function createValhallaQueueEngine({
   redisUrl = process.env.REDIS_URL,
+  backupRedisUrl = process.env.REDIS_URL_BACKUP,
+  preferBackup = false,
   RedisClient = IORedis,
   QueueClass = Queue,
   WorkerClass = Worker,
@@ -88,16 +143,21 @@ async function createValhallaQueueEngine({
   onState = () => {},
 } = {}) {
   validateQueueConfig({ redisUrl, role });
+  if (backupRedisUrl) validateQueueConfig({ redisUrl: backupRedisUrl, role });
   if (!Number.isInteger(startupTimeoutMs) || startupTimeoutMs < 1 || startupTimeoutMs > 30000) {
     throw new Error('invalid_startup_timeout');
   }
   if (signal?.aborted) throw new Error('startup_cancelled');
 
-  const connection = new RedisClient(redisUrl, {
-    maxRetriesPerRequest: null,
-    connectTimeout: Math.min(startupTimeoutMs, 5000),
-    retryStrategy: (attempt) => Math.min(1000 * 2 ** Math.min(attempt - 1, 4), 15000),
-  });
+  const candidates = [];
+  for (const [url, backend] of [[redisUrl, 'primary'], [backupRedisUrl, 'backup']]) {
+    if (url && !candidates.some((candidate) => candidate.url === url)) candidates.push({ url, backend });
+  }
+  if (preferBackup && candidates.length > 1) candidates.reverse();
+  const selected = await selectQueueBackend({ candidates, RedisClient, startupTimeoutMs, signal });
+  const connection = selected.connection;
+  const backend = selected.backend;
+  const endpoint = selected.endpoint;
   const queues = {};
   const workers = [];
   const blockingClients = [];
@@ -109,7 +169,7 @@ async function createValhallaQueueEngine({
   const state = (value) => {
     if (ready === value) return;
     ready = value;
-    onState({ ready: value, role, capabilities: ['paper-only', 'allowlisted-tasks'] });
+    onState({ ready: value, role, backend, endpoint, capabilities: ['paper-only', 'allowlisted-tasks'] });
   };
   const refresh = () => {
     if (started && !closed) {
@@ -221,7 +281,7 @@ async function createValhallaQueueEngine({
   }
 
   return {
-    getStatus: () => ({ ready: ready === true, role, capabilities: ['paper-only', 'allowlisted-tasks'] }),
+    getStatus: () => ({ ready: ready === true, role, backend, endpoint, capabilities: ['paper-only', 'allowlisted-tasks'] }),
     async enqueue(input) {
       if (closed || !ready || role === 'consumer') throw new Error('queue_unavailable');
       const { targetEngine, taskName, payload } = validateDispatch(input);
@@ -243,10 +303,11 @@ function validateQueueConfig({ redisUrl, role }) {
   } catch {
     throw new Error('invalid_redis_url');
   }
+  const renderInternal = parsedUrl.protocol === 'redis:' && /^red-[a-z0-9]+$/i.test(parsedUrl.hostname);
   if (
     !['redis:', 'rediss:'].includes(parsedUrl.protocol) ||
     !parsedUrl.hostname ||
-    (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'rediss:') ||
+    (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'rediss:' && !renderInternal) ||
     parsedUrl.search || parsedUrl.hash
   ) {
     throw new Error('REDIS_URL must use rediss:// in production');

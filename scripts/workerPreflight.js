@@ -23,7 +23,9 @@ function checkWorkerConfig(env = process.env) {
   for (const name of ['VALHALLA_TRADING_ENABLED', 'VALHALLA_SOCIAL_ENABLED', 'VALHALLA_KEY_STORAGE_ENABLED', 'ZEUS_IDLE_ENABLED']) {
     if (env[name] && env[name] !== 'false') throw new Error('unsupported_capability_enabled');
   }
-  require('../valhallaQueueEngine').validateQueueConfig({ redisUrl: env.REDIS_URL, role: 'consumer' });
+  const { validateQueueConfig } = require('../valhallaQueueEngine');
+  validateQueueConfig({ redisUrl: env.REDIS_URL, role: 'consumer' });
+  if (env.REDIS_URL_BACKUP) validateQueueConfig({ redisUrl: env.REDIS_URL_BACKUP, role: 'consumer' });
   return true;
 }
 
@@ -34,7 +36,12 @@ if (require.main === module) {
       throw new Error('invalid_preflight_option');
     }
     if (process.argv[2] !== '--structure' && !checkWorkerConfig()) throw new Error('queue_disabled');
-    console.log(JSON.stringify({ component: 'worker_preflight', status: 'passed', scope: process.argv[2] === '--structure' ? 'structure' : 'configuration' }));
+    console.log(JSON.stringify({
+      component: 'worker_preflight',
+      status: 'passed',
+      scope: process.argv[2] === '--structure' ? 'structure' : 'configuration',
+      redundancy: process.env.REDIS_URL_BACKUP ? 'dual' : 'single',
+    }));
   } catch (error) {
     console.error(JSON.stringify({ component: 'worker_preflight', error: error.message }));
     process.exitCode = 1;

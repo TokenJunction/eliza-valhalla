@@ -20,20 +20,21 @@ const config = {
   REDIS_URL: 'redis://127.0.0.1:6379',
 };
 
-function fixture({ hang = false, fail = false } = {}) {
+function fixture({ hang = false, fail = false, failUrls = [], hangUrls = [] } = {}) {
   const connections = [];
   const queues = [];
   const workers = [];
   class Redis extends EventEmitter {
     constructor(url, options) {
       super();
+      this.url = url;
       this.options = options;
       this.status = 'ready';
       connections.push(this);
     }
     ping() {
-      if (hang) return new Promise(() => {});
-      if (fail) return Promise.reject(new Error('sensitive backend details'));
+      if (hang || hangUrls.includes(this.url)) return new Promise(() => {});
+      if (fail || failUrls.includes(this.url)) return Promise.reject(new Error('sensitive backend details'));
       return Promise.resolve('PONG');
     }
     disconnect() { this.status = 'end'; this.emit('close'); }
@@ -157,6 +158,39 @@ test('producer and legacy combined modes preserve roles and reconnect readiness'
     await engine.close();
     assert.ok(f.queues.every((queue) => queue.closed));
   }
+});
+
+test('fails over from an unavailable primary to the backup endpoint', async () => {
+  const primary = 'redis://127.0.0.1:6390';
+  const backup = 'rediss://red-backup.example.test:6379';
+  const f = fixture({ failUrls: [primary] });
+  const engine = await createValhallaQueueEngine({
+    redisUrl: primary,
+    backupRedisUrl: backup,
+    role: 'consumer',
+    RedisClient: f.Redis,
+    QueueClass: f.Queue,
+    WorkerClass: f.Worker,
+  });
+  assert.equal(engine.getStatus().backend, 'backup');
+  assert.equal(engine.getStatus().endpoint, 'red-backup.example.test:6379');
+  assert.equal(f.connections.length, 2);
+  assert.equal(f.connections[0].status, 'end');
+  assert.equal(f.connections[1].status, 'ready');
+  await engine.close();
+});
+
+test('reports redis_unavailable only after both endpoints fail', async () => {
+  const f = fixture({ fail: true });
+  await assert.rejects(createValhallaQueueEngine({
+    redisUrl: 'redis://127.0.0.1:6390',
+    backupRedisUrl: 'rediss://red-backup.example.test:6379',
+    RedisClient: f.Redis,
+    QueueClass: f.Queue,
+    WorkerClass: f.Worker,
+  }), /^Error: redis_unavailable$/);
+  assert.equal(f.connections.length, 2);
+  assert.ok(f.connections.every((connection) => connection.status === 'end'));
 });
 
 test('unavailable Redis, startup deadline and cancellation clean up without leaking errors', async () => {

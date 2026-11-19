@@ -7,6 +7,7 @@ const {
   executeSafeTask,
   isAuthorizedDispatch,
   validateDispatch,
+  validateQueueConfig,
 } = require('./valhallaQueueEngine');
 
 test('accepts only explicitly allow-listed paper and status jobs', () => {
@@ -65,4 +66,19 @@ test('requires a Redis protocol URL and rejects insecure production Redis', asyn
     createValhallaQueueEngine({ redisUrl: 'https://redis.example.test' }),
     /REDIS_URL must use rediss:\/\/ in production/,
   );
+});
+
+test('permits plain redis:// only for a Render private-network host in production', () => {
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    assert.doesNotThrow(() => validateQueueConfig({ redisUrl: 'redis://red-abc123:6379', role: 'consumer' }));
+    assert.throws(
+      () => validateQueueConfig({ redisUrl: 'redis://public.example.test:6379', role: 'consumer' }),
+      /REDIS_URL must use rediss:\/\/ in production/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
 });
