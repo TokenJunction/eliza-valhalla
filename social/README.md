@@ -1,6 +1,10 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:3095dd5959e31a8d9953328c136b87f55a2b24f16b0c9b1d572a87d9c209ee66 -->
+
 # Valhalla X helper
 
-`valhalla-x` is a small Python 3 tool for the Valhalla X account. It runs on a plain Linux box. It uses the Python standard library only. You do not install packages.
+`valhalla-x` is a small Python 3 tool for the Valhalla X account. It runs on a plain Linux box. It requires Python 3.9+ and no package installation. The bundled [twitter-text Python port](https://github.com/swen128/twitter-text-python) is version 3.0.0 under the MIT license; its emoji data is loaded with the standard library.
 
 It can preview drafts, post one approved note, upload one image, and update the profile. It does not like, follow, send direct messages, or reply.
 
@@ -23,7 +27,7 @@ python3 social/valhalla-x post --id 1
 
 ## Approve a note
 
-Open `social/queue.json`. Set `"approved"` to `true` on the one item you want to send. Leave every other item `false`. The text must be 1 to 280 characters.
+Open `social/queue.json`. Set `"approved"` to `true` on the one item you want to send. Leave every other item `false`. Each queue ID must be a JSON integer. The text must have a [weighted length](https://docs.x.com/fundamentals/counting-characters) of 1 to 280; URLs, emoji sequences, and some Unicode characters have special weights.
 
 An optional `"image"` value is a local png, jpg, gif, or webp path. The file must be 5 MB or smaller. The tool uploads it with X media upload v2, then attaches it to that one post.
 
@@ -42,11 +46,31 @@ These are OAuth 1.0a credentials from the X developer app. The tool never prints
 python3 social/valhalla-x post --id 1 --live
 ```
 
-The command sends at most one post. A later post the same America/New_York day counts too. The third live post that day stops. The counter is `social/.x-posts.json`. That file is local. Do not commit it.
+The command sends at most one post. A later post the same America/New_York day counts too. The third live post that day stops. The counter is `social/.x-posts.json`; the adjacent `.lock` file coordinates concurrent commands. Keep both local and use the same counter path for all live posts from this tool.
 
 `--live` without `"approved": true` does not post.
 
 `DRY_RUN=false` does not post. Only the `--live` flag does.
+
+## Reconcile a pending post
+
+The tool saves the attempt before sending to X. An error, interruption, or missing post ID can leave its outcome unknown. Until the outcome is recorded, the tool blocks all further live posts and shows the pending attempt ID. The counter file also contains the time the attempt started.
+
+Check the account on X. If the post was published, record its verified publication timestamp (ISO 8601 with a timezone):
+
+```bash
+python3 social/valhalla-x reconcile --attempt ATTEMPT_ID --posted-at 2026-11-26T05:00:00Z
+```
+
+This counts the post on its publication day in New York and prevents another live post of that queue ID. If you can confirm X did not publish the post, clear the attempt so the item can be retried:
+
+```bash
+python3 social/valhalla-x reconcile --attempt ATTEMPT_ID --not-posted
+```
+
+Leave the attempt pending if you cannot determine the outcome.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ## Profile
 

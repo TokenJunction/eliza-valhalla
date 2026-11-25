@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import http.client
 import io
 import json
 import os
@@ -13,8 +14,12 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.parse
+import urllib.request
+import urllib.response
 from contextlib import redirect_stdout
+from email.message import Message
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import valhalla_x
@@ -207,6 +212,73 @@ class ValhallaXTests(unittest.TestCase):
         self.assertIn("No request was sent", out)
         self.assertFalse(called["hit"])
 
+    def test_queue_ids_are_not_coerced(self) -> None:
+        for invalid in (True, False, 1.0, 1.5, "1", None):
+            with self.subTest(invalid=invalid):
+                self.write_queue([{"id": invalid, "text": "A post."}])
+                with self.assertRaisesRegex(SystemExit, "Queue id must be an integer"):
+                    valhalla_x.load_queue(valhalla_x.queue_path())
+        self.write_queue([{"id": 1, "text": "First"}, {"id": 1, "text": "Second"}])
+        with self.assertRaisesRegex(SystemExit, "repeats id 1"):
+            valhalla_x.load_queue(valhalla_x.queue_path())
+
+    def test_post_text_follows_x_weighted_length(self) -> None:
+        for text, weight, exit_code in (
+            ("", 0, 1),
+            ("漢" * 140, 280, 0),
+            ("漢" * 141, 282, 1),
+            ("a" * 279 + "\r\n", 281, 1),
+            ("a" * 257 + " https://example.com/" + "a" * 300, 281, 1),
+            ("a" * 256 + " https://example.com/" + "a" * 300, 280, 0),
+            ("👨‍👩‍👧‍👦" * 140, 280, 0),
+            ("e\u0301" * 280, 280, 0),
+            ("a\uffff", 3, 1),
+        ):
+            with self.subTest(weight=weight, text=text[:15]):
+                self.write_queue([{"id": 7, "text": text}])
+                code, out = self.run_cli(["post", "--id", "7"])
+                self.assertEqual(code, exit_code, out)
+                self.assertIn(f"weighted length {weight}" if code == 0 else "Item 7", out)
+
+    def test_authenticated_requests_refuse_redirects(self) -> None:
+        for status in (301, 302, 303, 307, 308):
+            for target in ("/other", "https://elsewhere.invalid/", "http://elsewhere.invalid/"):
+                with self.subTest(status=status, target=target):
+                    def reply(_handler, request):
+                        self.assertEqual(request.full_url, valhalla_x.TWEETS_URL)
+                        self.assertEqual(request.get_header("Authorization"), "OAuth synthetic")
+                        headers = Message()
+                        headers["Location"] = target
+                        response = urllib.response.addinfourl(io.BytesIO(), headers, request.full_url, status)
+                        response.msg = "Redirect"
+                        return response
+
+                    with patch.object(urllib.request.HTTPSHandler, "https_open", autospec=True, side_effect=reply) as https:
+                        with patch.object(urllib.request.HTTPHandler, "http_open") as http:
+                            with self.assertRaisesRegex(SystemExit, f"X API HTTP {status}"):
+                                valhalla_x.send(valhalla_x.TWEETS_URL, b"{}", {"Authorization": "OAuth synthetic"})
+                    https.assert_called_once()
+                    http.assert_not_called()
+
+    def test_image_bounds_when_file_grows(self) -> None:
+        image = Path(self.tmp.name) / "image.png"
+        image.write_bytes(b"1234")
+        self.assertEqual(valhalla_x.image_bytes(str(image), 4)[0], b"1234")
+        with self.assertRaisesRegex(SystemExit, "larger than 3 bytes"):
+            valhalla_x.image_bytes(str(image), 3)
+
+        actual_fstat = os.fstat
+
+        def grow_after_stat(fd):
+            result = actual_fstat(fd)
+            with image.open("ab") as handle:
+                handle.write(b"5")
+            return result
+
+        with patch.object(valhalla_x.os, "fstat", side_effect=grow_after_stat):
+            with self.assertRaisesRegex(SystemExit, "larger than 4 bytes"):
+                valhalla_x.image_bytes(str(image), 4)
+
     def test_live_requires_approval_and_hides_secrets(self) -> None:
         self.write_queue(
             [
@@ -274,6 +346,70 @@ class ValhallaXTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Daily cap", out)
         self.assertEqual(len(capture.requests), 2)
+
+    def test_post_crossing_midnight_uses_existing_completion_day_entry(self) -> None:
+        log = valhalla_x.log_path()
+        old_day, new_day = "2026-11-25", "2026-11-26"
+        prior_post = {"id": 99, "at": "2026-11-26T05:00:00Z"}
+        log.write_text(json.dumps({"days": {
+            old_day: {"count": 1, "posts": []},
+            new_day: {"count": 1, "posts": [prior_post]},
+        }}))
+        with patch.object(valhalla_x, "today_key", side_effect=[old_day, new_day, new_day]):
+            valhalla_x.guarded_post({"id": 2, "text": "Midnight"}, FAKE, Capture())
+            with self.assertRaisesRegex(SystemExit, "Daily cap"):
+                valhalla_x.guarded_post({"id": 3, "text": "Too many"}, FAKE, Capture())
+        days = json.loads(log.read_text())["days"]
+        self.assertEqual(days[old_day]["count"], 1)
+        self.assertEqual(days[new_day]["count"], 2)
+        self.assertEqual(days[new_day]["posts"][0], prior_post)
+        self.assertEqual(days[new_day]["posts"][1]["id"], 2)
+
+    def test_lost_response_blocks_retry_and_reconciliation_preserves_cap(self) -> None:
+        log = valhalla_x.log_path()
+        fixed_day = "2026-01-01"
+        key = patch.object(valhalla_x, "today_key", return_value=fixed_day)
+        self.addCleanup(key.stop)
+        key.start()
+        first = {"id": 1, "text": "First"}
+        second = {"id": 2, "text": "Second"}
+        valhalla_x.guarded_post(first, FAKE, Capture())
+        at = dt.datetime(2026, 1, 1, 15, tzinfo=dt.timezone.utc)
+
+        def connection_lost(request, timeout):
+            self.assertEqual(request.full_url, valhalla_x.TWEETS_URL)
+            self.assertEqual(json.loads(log.read_text())["pending"]["id"], 2)
+            raise http.client.RemoteDisconnected()
+
+        with self.assertRaisesRegex(SystemExit, "X API network error.*Verify item 2"):
+            valhalla_x.guarded_post(second, FAKE, connection_lost)
+        capture = Capture()
+        for item in (second, {"id": 3, "text": "Third"}):
+            with self.assertRaisesRegex(SystemExit, "Verify item 2"):
+                valhalla_x.guarded_post(item, FAKE, capture)
+        pending = json.loads(log.read_text())["pending"]
+        self.assertEqual(self.run_cli(["reconcile", "--attempt", "stale", "--not-posted"])[0], 1)
+        code, out = self.run_cli(["reconcile", "--attempt", pending["attempt"], "--posted-at", at.isoformat()])
+        self.assertEqual(code, 0, out)
+        data = json.loads(log.read_text())
+        self.assertNotIn("pending", data)
+        self.assertEqual(data["days"][fixed_day]["count"], 2)
+        with self.assertRaisesRegex(SystemExit, "already confirmed posted"):
+            valhalla_x.guarded_post(second, FAKE, capture)
+        with self.assertRaisesRegex(SystemExit, "Daily cap"):
+            valhalla_x.guarded_post({"id": 3, "text": "Third"}, FAKE, capture)
+        self.assertEqual(capture.requests, [])
+
+    def test_missing_post_id_requires_reconciliation_before_retry(self) -> None:
+        item = {"id": 5, "text": "Retry"}
+        with self.assertRaisesRegex(SystemExit, "X API HTTP 201.*Verify item 5"):
+            valhalla_x.guarded_post(item, FAKE, Capture(payload={}))
+        pending = json.loads(valhalla_x.log_path().read_text())["pending"]
+        code, out = self.run_cli(["reconcile", "--attempt", pending["attempt"], "--not-posted"])
+        self.assertEqual(code, 0, out)
+        valhalla_x.guarded_post(item, FAKE, Capture())
+        data = json.loads(valhalla_x.log_path().read_text())
+        self.assertEqual(list(data["days"].values())[0]["count"], 1)
 
     def test_corrupt_daily_log_fails_closed(self) -> None:
         self.write_queue([{"id": 2, "text": "Cap note.", "approved": True}])

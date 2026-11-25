@@ -3,4 +3,5 @@
 /private-export/
 **/__pycache__/
 social/.x-posts.json
+social/.x-posts.json.lock
 social/__pycache__/

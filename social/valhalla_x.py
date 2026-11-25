@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Manual X account tool for Valhalla.
 
-Commands: draft, post, profile.
+Commands: draft, post, reconcile, profile.
 A real post needs --live and "approved": true on that queue item.
 This tool does not like, follow, send direct messages, or reply.
 Secrets stay in the environment and are never printed.
@@ -15,15 +15,21 @@ import datetime as dt
 import fcntl
 import hashlib
 import hmac
+import http.client
 import json
 import os
 import secrets
+import stat
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 import zoneinfo
+from contextlib import contextmanager
 from pathlib import Path
+
+from twitter_text import parse_tweet
 
 CRED_NAMES = (
     "X_API_KEY",
@@ -158,10 +164,9 @@ def load_queue(path: Path) -> list[dict[str, object]]:
     for item in items:
         if not isinstance(item, dict) or "id" not in item or "text" not in item:
             raise SystemExit("Each queue item needs id and text")
-        try:
-            item_id = int(item["id"])
-        except (TypeError, ValueError) as exc:
-            raise SystemExit("Queue id must be a number") from exc
+        if type(item["id"]) is not int:
+            raise SystemExit("Queue id must be an integer")
+        item_id = item["id"]
         if item_id in seen:
             raise SystemExit(f"queue.json repeats id {item_id}")
         seen.add(item_id)
@@ -225,20 +230,29 @@ def form_body(params: dict[str, str]) -> bytes:
     return urllib.parse.urlencode(params, quote_via=urllib.parse.quote, safe="").encode()
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def send(url: str, data: bytes, headers: dict[str, str], opener=None) -> tuple[int, bytes]:
     if url not in ALLOWED_URLS:
         raise SystemExit("Blocked endpoint")
     request = urllib.request.Request(url, data=data, method="POST")
     for key, value in headers.items():
-        request.add_header(key, value)
-    open_fn = opener or OPENER or urllib.request.urlopen
+        if key.lower() == "authorization":
+            request.add_unredirected_header(key, value)
+        else:
+            request.add_header(key, value)
+    open_fn = opener or OPENER or urllib.request.build_opener(NoRedirect()).open
     try:
         with open_fn(request, timeout=30) as response:
             code = getattr(response, "status", None) or response.getcode()
             return int(code), response.read()
     except urllib.error.HTTPError as exc:
+        exc.close()
         raise SystemExit(f"X API HTTP {exc.code}") from None
-    except urllib.error.URLError:
+    except (OSError, http.client.HTTPException):
         raise SystemExit("X API network error") from None
 
 
@@ -266,7 +280,23 @@ def image_bytes(path: str, limit: int) -> tuple[bytes, str, str]:
     suffix = file_path.suffix.lower()
     if suffix not in IMAGE_TYPES:
         raise SystemExit("Image must be png, jpg, gif, or webp")
-    raw = file_path.read_bytes()
+    try:
+        # Do not block if the path was swapped for a FIFO after is_file().
+        fd = os.open(file_path, os.O_RDONLY | os.O_NONBLOCK)
+    except (FileNotFoundError, NotADirectoryError):
+        raise SystemExit("Image file is missing") from None
+    with os.fdopen(fd, "rb", buffering=0) as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise SystemExit("Image file is missing")
+        if info.st_size > limit:
+            raise SystemExit(f"Image is larger than {limit} bytes")
+        raw = handle.read(limit + 1)
+        while len(raw) <= limit:
+            more = handle.read(limit + 1 - len(raw))
+            if not more:
+                break
+            raw += more
     if len(raw) > limit:
         raise SystemExit(f"Image is larger than {limit} bytes")
     name = file_path.name.replace('"', "").replace("\r", "").replace("\n", "")
@@ -332,71 +362,149 @@ def post_tweet(text: str, media_id: str, creds: dict[str, str], opener=None) -> 
     try:
         parsed = json.loads(payload.decode())
         data = parsed.get("data") if isinstance(parsed, dict) else None
-        if isinstance(data, dict) and data.get("id"):
-            tweet_id = str(data["id"])
+        ident = data.get("id") if isinstance(data, dict) else None
+        if isinstance(ident, str) and ident.isascii() and ident.isdecimal():
+            tweet_id = ident
     except (UnicodeDecodeError, json.JSONDecodeError):
         tweet_id = ""
     return code, tweet_id
 
 
-def read_log(handle) -> dict:
-    handle.seek(0)
-    raw = handle.read()
+INVALID_LOG = "Post counter is invalid; refusing live posts"
+
+
+def read_log(path: Path) -> dict:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            raw = handle.read()
+    except FileNotFoundError:
+        return {"days": {}}
     if not raw.strip():
         raise SystemExit("Post counter is empty; refusing live posts")
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        raise SystemExit("Post counter is invalid; refusing live posts") from None
+        raise SystemExit(INVALID_LOG) from None
     if not isinstance(data, dict) or not isinstance(data.get("days"), dict):
-        raise SystemExit("Post counter is invalid; refusing live posts")
+        raise SystemExit(INVALID_LOG)
+    if "pending" in data:
+        pending = data["pending"]
+        if (not isinstance(pending, dict) or type(pending.get("id")) is not int
+                or not isinstance(pending.get("attempt"), str) or not pending["attempt"]):
+            raise SystemExit(INVALID_LOG)
     return data
 
 
-def write_log(handle, data: dict) -> None:
-    handle.seek(0)
-    handle.truncate()
-    handle.write(json.dumps(data, separators=(",", ":")))
-    handle.flush()
+@contextmanager
+def locked_log(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # The counter is replaced atomically, so lock a separate, stable inode.
+    lock_path = path.with_name(path.name + ".lock")
+    with open(os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600), "rb") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        yield read_log(path)
+
+
+def write_log(path: Path, data: dict) -> None:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            json.dump(data, handle, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+            os.replace(temporary, path)
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def day_entry(data: dict, day: str) -> tuple[int, list]:
+    entry = data["days"].get(day, {})
+    if not isinstance(entry, dict):
+        raise SystemExit(INVALID_LOG)
+    count, posts = entry.get("count", 0), entry.get("posts", [])
+    if type(count) is not int or count < 0 or not isinstance(posts, list):
+        raise SystemExit(INVALID_LOG)
+    return count, posts
+
+
+def check_cap(data: dict) -> None:
+    day = today_key()
+    count, _ = day_entry(data, day)
+    if count >= DAILY_POST_CAP:
+        raise SystemExit(f"Daily cap is {DAILY_POST_CAP} posts for {day} (America/New_York).")
+
+
+def record_post(data: dict, day: str, at: dt.datetime, *, reconciled: bool = False) -> None:
+    count, posts = day_entry(data, day)
+    post = {"id": data["pending"]["id"], "at": at.strftime("%Y-%m-%dT%H:%M:%SZ")}
+    if reconciled:
+        post["reconciled"] = True
+    data["days"][day] = {"count": count + 1, "posts": [*posts, post]}
+
+
+def pending_message(pending: dict) -> str:
+    return (f"Verify item {pending['id']} on X before another live post. "
+            f"Then run reconcile --attempt {pending['attempt']} with --posted-at or --not-posted.")
 
 
 def guarded_post(item: dict[str, object], creds: dict[str, str], opener=None) -> tuple[int, str]:
     path = log_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    new_log = not path.exists()
-    with path.open("a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    with locked_log(path) as data:
+        if "pending" in data:
+            raise SystemExit(pending_message(data["pending"]))
+        for day in data["days"]:
+            _, posts = day_entry(data, day)
+            if any(isinstance(post, dict) and post.get("reconciled") is True
+                   and post.get("id") == item["id"] for post in posts):
+                raise SystemExit(f"Item {item['id']} was already confirmed posted on X.")
+        check_cap(data)
+        media_id = ""
+        image = str(item.get("image") or "")
+        if image:
+            media_id = upload_media(image, creds, opener)
+            check_cap(data)
+        pending = {"id": item["id"], "attempt": secrets.token_hex(8),
+                   "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
+        data["pending"] = pending
+        write_log(path, data)
         try:
-            os.chmod(path, 0o600)
-            if new_log and os.fstat(handle.fileno()).st_size == 0:
-                write_log(handle, {"days": {}})
-            data = read_log(handle)
-            day = today_key()
-            entry = data["days"].get(day, {"count": 0, "posts": []})
-            if not isinstance(entry, dict):
-                raise SystemExit("Post counter is invalid; refusing live posts")
-            count = entry.get("count", 0)
-            if type(count) is not int or count < 0:
-                raise SystemExit("Post counter is invalid; refusing live posts")
-            if count >= DAILY_POST_CAP:
-                raise SystemExit(f"Daily cap is {DAILY_POST_CAP} posts for {day} (America/New_York).")
-            media_id = ""
-            image = str(item.get("image") or "")
-            if image:
-                media_id = upload_media(image, creds, opener)
             code, tweet_id = post_tweet(str(item["text"]), media_id, creds, opener)
-            posts = list(entry.get("posts") or [])
-            posts.append(
-                {
-                    "id": item["id"],
-                    "at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                }
-            )
-            data["days"][day] = {"count": count + 1, "posts": posts}
-            write_log(handle, data)
-            return code, tweet_id
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except SystemExit as exc:
+            raise SystemExit(f"{exc.code}. {pending_message(pending)}") from None
+        if not 200 <= code < 300 or not tweet_id:
+            raise SystemExit(f"X API HTTP {code}. {pending_message(pending)}")
+        at = dt.datetime.now(dt.timezone.utc)
+        record_post(data, today_key(at), at)
+        del data["pending"]
+        write_log(path, data)
+        return code, tweet_id
+
+
+def cmd_reconcile(attempt: str, posted_at: str | None) -> None:
+    at = None
+    if posted_at is not None:
+        try:
+            at = dt.datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
+            if at.tzinfo is None or at > dt.datetime.now(dt.timezone.utc):
+                raise ValueError
+            at = at.astimezone(dt.timezone.utc)
+        except (ValueError, OverflowError):
+            raise SystemExit("Give the verified X timestamp in ISO 8601 with a timezone") from None
+    path = log_path()
+    with locked_log(path) as data:
+        pending = data.get("pending")
+        if pending is None or pending["attempt"] != attempt:
+            raise SystemExit("No pending post matches that attempt.")
+        if at is not None:
+            record_post(data, today_key(at), at, reconciled=True)
+        del data["pending"]
+        write_log(path, data)
+    say(f"Reconciled item {pending['id']} as " + ("posted." if at is not None else "not posted."))
 
 
 def find_item(item_id: int) -> dict[str, object]:
@@ -431,10 +539,14 @@ def cmd_draft() -> None:
 def cmd_post(item_id: int, live: bool) -> None:
     item = find_item(item_id)
     text = str(item["text"])
-    if not text or len(text) > 280:
-        raise SystemExit(f"Item {item_id} must be 1 to 280 characters")
+    try:
+        result = parse_tweet(text)
+    except UnicodeError:
+        raise SystemExit(f"Item {item_id} contains invalid Unicode") from None
+    if not result.valid:
+        raise SystemExit(f"Item {item_id} must have valid X text with a weighted length of 1 to 280")
     flag = "approved" if item["approved"] else "not-approved"
-    say(f"item {item_id} {flag} chars {len(text)}")
+    say(f"item {item_id} {flag} weighted length {result.weightedLength}")
     say(text)
     if item["image"]:
         say(f"image {Path(str(item['image'])).name}")
@@ -509,6 +621,11 @@ def build_parser() -> argparse.ArgumentParser:
     post = commands.add_parser("post", help="Preview or post one queue item")
     post.add_argument("--id", required=True, type=int)
     post.add_argument("--live", action="store_true")
+    reconcile = commands.add_parser("reconcile", help="Record the verified outcome of a pending post")
+    reconcile.add_argument("--attempt", required=True)
+    outcome = reconcile.add_mutually_exclusive_group(required=True)
+    outcome.add_argument("--posted-at")
+    outcome.add_argument("--not-posted", action="store_true")
     profile = commands.add_parser("profile", help="Preview or update the X profile")
     profile.add_argument("--name")
     profile.add_argument("--bio")
@@ -526,6 +643,8 @@ def run(argv: list[str] | None = None) -> None:
         cmd_draft()
     elif args.cmd == "post":
         cmd_post(args.id, args.live)
+    elif args.cmd == "reconcile":
+        cmd_reconcile(args.attempt, args.posted_at)
     elif args.cmd == "profile":
         cmd_profile(args)
     else:
